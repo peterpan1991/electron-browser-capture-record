@@ -1,6 +1,8 @@
 @import './base.css';
 
-html, body, #root {
+html,
+body,
+#root {
   margin: 0;
   padding: 0;
   width: 100%;
@@ -165,7 +167,7 @@ code {
   flex-direction: column;
   position: relative;
   overflow: hidden; /* 防止内容溢出 */
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
 
 /* 加载进度条 */
@@ -189,8 +191,8 @@ code {
   display: flex;
   gap: 10px;
   align-items: center;
-  box-shadow: 0 2px 5px rgba(0,0,0,0.2);
-  z-index: 100;  
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+  z-index: 100;
 }
 
 /* 输入框 */
@@ -231,7 +233,7 @@ code {
 
 /* 特定按钮颜色 */
 .goButton {
-  background-color: #4CAF50;
+  background-color: #4caf50;
 }
 
 .captureButton {

@@ -1,9 +1,18 @@
-import { desktopCapturer, app, shell, BrowserWindow, ipcMain, WebContentsView, dialog } from 'electron'
+import {
+  desktopCapturer,
+  app,
+  shell,
+  BrowserWindow,
+  ipcMain,
+  WebContentsView,
+  dialog
+} from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import fs from 'fs'
 import path from 'path'
+import { Task } from '../shared/types'
 
 function createWindow(): void {
   // Create the browser window.
@@ -32,35 +41,35 @@ function createWindow(): void {
   view.webContents.loadURL('about:blank')
 
   ipcMain.handle('load-url', async (_event, id: number, targetUrl: string) => {
-    const view = views.get(id); // 這裡的 views 是你存放分頁的 Map
-    
+    const view = views.get(id) // 這裡的 views 是你存放分頁的 Map
+
     if (view) {
       try {
         // 規範化網址（如果沒輸入 https:// 幫他加上）
-        let finalUrl = targetUrl;
+        let finalUrl = targetUrl
         if (!/^https?:\/\//i.test(targetUrl)) {
-          finalUrl = 'https://' + targetUrl;
+          finalUrl = 'https://' + targetUrl
         }
-        
+
         // 先隱藏其他視圖，再顯示當前視圖（在 loadURL 之前，避免 Home 消失後露出背景）
-        views.forEach((v) => v.setBounds({ x: 0, y: 0, width: 0, height: 0 }));
+        views.forEach((v) => v.setBounds({ x: 0, y: 0, width: 0, height: 0 }))
         const { width, height } = mainWindow.getContentBounds()
-        view.setBounds({ 
-          x: 0, 
-          y: TOOLBAR_TOTAL_HEIGHT, 
-          width: width, 
-          height: height - TOOLBAR_TOTAL_HEIGHT 
+        view.setBounds({
+          x: 0,
+          y: TOOLBAR_TOTAL_HEIGHT,
+          width: width,
+          height: height - TOOLBAR_TOTAL_HEIGHT
         })
 
-        await view.webContents.loadURL(finalUrl);
-        return { success: true };
-      } catch (error: any) {
-        return { success: false, message: error.message };
+        await view.webContents.loadURL(finalUrl)
+        return { success: true }
+      } catch (error) {
+        return { success: false, message: error instanceof Error ? error.message : String(error) }
       }
     }
-    
-    return { success: false, message: '找不到对应的分页视图' };
-  });
+
+    return { success: false, message: '找不到对应的分页视图' }
+  })
 
   view.webContents.on('did-start-loading', () => {
     mainWindow.webContents.send('loading-status', { loading: true, progress: 30 })
@@ -92,7 +101,7 @@ function createWindow(): void {
   }
 
   // 封裝一個更新大小的函式（更新當前可見的視圖）
-  const updateViewBounds = () => {
+  const updateViewBounds = (): void => {
     const { width, height } = mainWindow.getContentBounds()
     views.forEach((v) => {
       const url = v.webContents.getURL()
@@ -112,9 +121,13 @@ function createWindow(): void {
     updateViewBounds()
   })
 
-  ipcMain.handle('capture-page', async () => {
-    
-    const image = await view.webContents.capturePage()
+  ipcMain.handle('capture-page', async (_event, id: number) => {
+    const targetView = views.get(id)
+    if (!targetView) {
+      return { success: false, message: '找不到对应的分页视图' }
+    }
+
+    const image = await targetView.webContents.capturePage()
     const png = image.toPNG() // 轉為 PNG 格式的 Buffer
 
     // 弹出保存对话框
@@ -130,7 +143,7 @@ function createWindow(): void {
       shell.showItemInFolder(filePath)
       return { success: true, path: filePath }
     }
-    
+
     return { success: false }
   })
 
@@ -138,13 +151,13 @@ function createWindow(): void {
     // 獲取所有視窗與螢幕來源
     const sources = await desktopCapturer.getSources({ types: ['window', 'screen'] })
     // 找到你目前的 Electron 視窗（或是直接回傳第一個螢幕）
-    return sources.map(source => ({
+    return sources.map((source) => ({
       id: source.id,
       name: source.name
     }))
   })
 
-  ipcMain.handle('save-video', async (_, {buffer, mimeType}) => {
+  ipcMain.handle('save-video', async (_, { buffer, mimeType }) => {
     const isMp4 = mimeType.includes('video/mp4')
     const ext = isMp4 ? 'mp4' : 'webm'
 
@@ -161,7 +174,7 @@ function createWindow(): void {
       shell.showItemInFolder(filePath)
       return { success: true, path: filePath }
     }
-    
+
     return { success: false }
   })
 
@@ -191,17 +204,17 @@ function createWindow(): void {
       })
 
       mainWindow.contentView.addChildView(view)
-      
+
       // 等待網頁開始加載（或直接加載）
       view.webContents.loadURL(url)
-      
+
       // 建立後自動執行顯示邏輯
-      showView(id) 
+      showView(id)
 
       return { success: true }
-    } catch (error: any) {
+    } catch (error) {
       console.error('建立分页失败:', error)
-      return { success: false, error: error.message }
+      return { success: false, error: error instanceof Error ? error.message : String(error) }
     }
   })
 
@@ -213,27 +226,27 @@ function createWindow(): void {
     return { success: false, message: '找不到該分頁' }
   })
 
-  function showView(id: number) {
-    const targetView = views.get(id);
-    if (!targetView) return;
+  function showView(id: number): void {
+    const targetView = views.get(id)
+    if (!targetView) return
 
     // 隱藏舊的，顯示新的。錄製視窗的 MediaRecorder 會無縫拍到新的 View
-    views.forEach((v) => v.setBounds({ x: 0, y: 0, width: 0, height: 0 }));
+    views.forEach((v) => v.setBounds({ x: 0, y: 0, width: 0, height: 0 }))
 
     const url = targetView.webContents.getURL()
     if (url === 'about:blank' || url === '') {
       targetView.setBounds({ x: 0, y: 0, width: 0, height: 0 })
       return
     }
-    
+
     const { width, height } = mainWindow.getContentBounds()
-    
+
     // 立即設定正確的大小
-    targetView.setBounds({ 
-      x: 0, 
-      y: TOOLBAR_TOTAL_HEIGHT, 
-      width: width, 
-      height: height - TOOLBAR_TOTAL_HEIGHT 
+    targetView.setBounds({
+      x: 0,
+      y: TOOLBAR_TOTAL_HEIGHT,
+      width: width,
+      height: height - TOOLBAR_TOTAL_HEIGHT
     })
   }
 
@@ -257,7 +270,7 @@ function createWindow(): void {
       mainWindow.contentView.removeChildView(view)
       // 2. 銷毀內容（釋放記憶體）
       // @ts-ignore (新版 Electron API 可能需要直接呼叫 webContents.destroy)
-      view.webContents.destroy() 
+      view.webContents.destroy()
       // 3. 從 Map 中刪除
       views.delete(id)
       return { success: true }
@@ -265,8 +278,23 @@ function createWindow(): void {
     return { success: false }
   })
 
-  // 存放任務的簡單陣列 (正式開發建議用 electron-store)
-  let tasks: any[] = [] 
+  // 存放任務的 JSON 檔案路徑
+  const tasksPath = path.join(app.getPath('userData'), 'tasks.json')
+
+  // 存放任務的簡單陣列
+  const tasks: Task[] = []
+
+  // 啟動時從本地載入現有任務
+  if (fs.existsSync(tasksPath)) {
+    try {
+      const savedTasks = JSON.parse(fs.readFileSync(tasksPath, 'utf8'))
+      if (Array.isArray(savedTasks)) {
+        tasks.push(...savedTasks)
+      }
+    } catch (err) {
+      console.error('載入任務失敗:', err)
+    }
+  }
 
   // 1. 讓使用者選取資料夾
   ipcMain.handle('select-directory', async () => {
@@ -284,13 +312,19 @@ function createWindow(): void {
       createdAt: Date.now()
     }
     tasks.push(newTask)
-    // 這裡可以 fs.writeFileSync 存到本地 JSON 檔案實現持久化
+
+    // 儲存到本地 JSON 檔案
+    try {
+      fs.writeFileSync(tasksPath, JSON.stringify(tasks, null, 2), 'utf8')
+    } catch (err) {
+      console.error('儲存任務失敗:', err)
+    }
+
     return { success: true, task: newTask }
   })
 
   // 3. 獲取所有任務
   ipcMain.handle('get-tasks', () => tasks)
-
 }
 
 // This method will be called when Electron has finished

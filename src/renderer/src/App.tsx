@@ -1,35 +1,44 @@
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, ReactElement } from 'react'
 import Home from './components/Home'
 import NewTaskModal from './components/NewTaskModal'
+import TaskListModal from './components/TaskListModal'
+import { Task } from '../../shared/types'
 
-function App() {
+interface DesktopTrackConstraints extends MediaTrackConstraints {
+  mandatory?: {
+    chromeMediaSource: string
+    chromeMediaSourceId: string
+  }
+}
+
+function App(): ReactElement {
   const [url, setUrl] = useState('about:blank')
-  const [loading, setLoading] = useState(false)
+  const [, setLoading] = useState(false)
   const [progress, setProgress] = useState(0)
   const [isCapturing, setIsCapturing] = useState(false)
 
   //标签页
-  const [tabs, setTabs] = useState([{ id: 1, title: '新标签页', url: 'about:blank' }]);
-  const [activeTabId, setActiveTabId] = useState(1);
+  const [tabs, setTabs] = useState([{ id: 1, title: '新标签页', url: 'about:blank' }])
+  const [activeTabId, setActiveTabId] = useState(1)
 
-  const addTab = async () => {
+  const addTab = async (): Promise<void> => {
     const newId = Date.now()
     const newTab = { id: newId, title: '新标签页', url: 'about:blank' }
 
-    setTabs(prev => [...prev, newTab])
+    setTabs((prev) => [...prev, newTab])
     setActiveTabId(newId)
 
-    window.api.createTab(newId, newTab.url)    
+    window.api.createTab(newId, newTab.url)
   }
 
-  const switchTab = async (id: number) => {
+  const switchTab = async (id: number): Promise<void> => {
     // 1. 先切換 React 介面上的標籤選中狀態（讓使用者立刻看到點擊回饋）
     setActiveTabId(id)
 
     try {
       // 2. 等待主進程完成 View 的邊界調整與顯示
       const result = await window.api.switchTab(id)
-      
+
       if (!result.success) {
         console.error('切换分页失败:', result.message)
       }
@@ -41,14 +50,14 @@ function App() {
     }
   }
 
-  const removeTab = async (e: React.MouseEvent, id: number) => {
+  const removeTab = async (e: React.MouseEvent, id: number): Promise<void> => {
     e.stopPropagation() // 防止觸發 switchTab 事件
 
     // 1. 通知主進程銷毀 View
     await window.api.removeTab(id)
 
     // 2. 更新 React 狀態
-    const newTabs = tabs.filter(t => t.id !== id)
+    const newTabs = tabs.filter((t) => t.id !== id)
     setTabs(newTabs)
 
     // 3. 如果關掉的是目前的 Tab，則自動切換
@@ -62,13 +71,13 @@ function App() {
   }
 
   // 录像
-  const [isRecording, setIsRecording] = useState(false);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const [isRecording, setIsRecording] = useState(false)
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const chunksRef = useRef<Blob[]>([])
 
-  const startGlobalRecording = async () => {
-    const sources = await window.api.getSources();
-    const source = sources[0]; // 選擇整個視窗作為來源
+  const startGlobalRecording = async (): Promise<void> => {
+    const sources = await window.api.getSources()
+    const source = sources[0] // 選擇整個視窗作為來源
 
     const stream = await navigator.mediaDevices.getUserMedia({
       audio: false,
@@ -77,18 +86,18 @@ function App() {
           chromeMediaSource: 'desktop',
           chromeMediaSourceId: source.id // 關鍵：錄製的是「視窗」，切換分頁只是視窗內容變了，錄影不會斷
         }
-      } as any
-    });
+      } as DesktopTrackConstraints
+    })
 
-    const mimeType = MediaRecorder.isTypeSupported('video/mp4; codecs=h264') 
-      ? 'video/mp4; codecs=h264' 
-      : 'video/webm; codecs=vp9';
+    const mimeType = MediaRecorder.isTypeSupported('video/mp4; codecs=h264')
+      ? 'video/mp4; codecs=h264'
+      : 'video/webm; codecs=vp9'
 
-    const recorder = new MediaRecorder(stream, { 
+    const recorder = new MediaRecorder(stream, {
       mimeType: mimeType,
-      videoBitsPerSecond: 5000000 
-    });
-    
+      videoBitsPerSecond: 5000000
+    })
+
     mediaRecorderRef.current = recorder
     chunksRef.current = []
 
@@ -96,40 +105,39 @@ function App() {
     recorder.onstop = async () => {
       const blob = new Blob(chunksRef.current, { type: recorder.mimeType })
       const buffer = await blob.arrayBuffer()
-      
+
       await window.api.saveVideo({
         buffer,
         mimeType: recorder.mimeType // 例如: "video/mp4; codecs=h264"
       })
-      stream.getTracks().forEach(track => track.stop()) // 關閉攝像頭訊號
+      stream.getTracks().forEach((track) => track.stop()) // 關閉攝像頭訊號
     }
 
-    recorder.start();
-    setIsRecording(true);    
-  };
+    recorder.start()
+    setIsRecording(true)
+  }
 
-  const stopGlobalRecording = () => {
-    mediaRecorderRef.current?.stop();
-    setIsRecording(false);
-  };
+  const stopGlobalRecording = (): void => {
+    mediaRecorderRef.current?.stop()
+    setIsRecording(false)
+  }
 
-  const handleGo = async () => {
-    if (!url || url.includes('about:blank')) return;
-    
+  const handleGo = async (): Promise<void> => {
+    if (!url || url.includes('about:blank')) return
+
     // 传入当前选中的分页ID
-    const result = await window.api.loadUrl(activeTabId, url);
-    
-    if (!result.success) {
-      console.error('跳轉失敗:', result.message);
-    }
-  };
+    const result = await window.api.loadUrl(activeTabId, url)
 
+    if (!result.success) {
+      console.error('跳转失敗:', result.message)
+    }
+  }
 
   //截图
-  const handleCapture = async () => {
+  const handleCapture = async (): Promise<void> => {
     setIsCapturing(true)
     try {
-      const result = await window.api.capturePage()
+      const result = await window.api.capturePage(activeTabId)
       if (result.success) {
         alert('截图已保存！')
       }
@@ -142,29 +150,38 @@ function App() {
 
   //新建任务
   const [showModal, setShowModal] = useState(false)
-  const [taskList, setTaskList] = useState([])
+  const [showTaskListModal, setShowTaskListModal] = useState(false)
+  const [taskList, setTaskList] = useState<Task[]>([])
+  const [currentTaskName, setCurrentTaskName] = useState('')
 
-  const handleOpenModal = () => {
+  const handleOpenModal = (): void => {
     setShowModal(true)
   }
 
-  const handleSaveTask = async (data: any) => {
+  const handleSaveTask = async (data: { name: string; savePath: string }): Promise<void> => {
     const result = await window.api.saveTask(data)
     if (result.success) {
       setShowModal(false)
+      setCurrentTaskName(data.name)
       // 重新獲取列表
       const list = await window.api.getTasks()
       setTaskList(list)
     }
   }
 
+  const handleTaskLists = async (): Promise<void> => {
+    const list = await window.api.getTasks()
+    setTaskList(list)
+    setShowTaskListModal(true)
+  }
+
   useEffect(() => {
     // 监听来自主进程的进度通知
-    if (window.api?.onLoadingStatus) { 
+    if (window.api?.onLoadingStatus) {
       window.api.onLoadingStatus(({ loading, progress }) => {
         setLoading(loading)
         setProgress(progress)
-        
+
         // 加载完成后隐藏进度条
         if (!loading) {
           setTimeout(() => setProgress(0), 1000)
@@ -177,12 +194,12 @@ function App() {
         // 確保找到對應的 tab 並產生一個「全新」的物件，觸發 React 渲染
         return prevTabs.map((tab) => {
           if (tab.id === id) {
-            return { ...tab, title: title }; // 展開舊 tab，覆寫新 title
+            return { ...tab, title: title } // 展開舊 tab，覆寫新 title
           }
-          return tab;
-        });
-      });
-    });
+          return tab
+        })
+      })
+    })
 
     window.api.onUpdateUrl(({ id, url: newUrl }) => {
       // 只有當更新的是「目前正在看」的分頁時，才更新地址欄
@@ -190,34 +207,42 @@ function App() {
         setUrl(newUrl)
       }
       // 同時更新 tabs 陣列紀錄
-      setTabs(prev => prev.map(t => t.id === id ? { ...t, url: newUrl } : t))
+      setTabs((prev) => prev.map((t) => (t.id === id ? { ...t, url: newUrl } : t)))
     })
-
   }, [activeTabId])
 
   return (
-    <div className='container'>
-       {progress > 0 && (
-        <div 
-          className='progressBar'
+    <div className="container">
+      {progress > 0 && (
+        <div
+          className="progressBar"
           style={{ width: `${progress}%` }} // 动态宽度保留行内样式，或完全用 state 控制类名
         />
       )}
       {/* 1. TabBar */}
       <div className="tab-bar">
-        {tabs.map(tab => (
-          <div 
-            key={tab.id} 
+        {tabs.map((tab) => (
+          <div
+            key={tab.id}
             className={`tab ${activeTabId === tab.id ? 'active' : ''}`}
             onClick={() => {
               switchTab(tab.id)
             }}
             style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
           >
-            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{tab.title}</span>
+            <span
+              style={{
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+                flex: 1
+              }}
+            >
+              {tab.title}
+            </span>
             {/* 关闭按钮 */}
-            <span 
-              className="close-icon" 
+            <span
+              className="close-icon"
               onClick={(e) => removeTab(e, tab.id)}
               style={{ fontSize: '14px', opacity: 0.6 }}
             >
@@ -225,45 +250,82 @@ function App() {
             </span>
           </div>
         ))}
-        <button className="add-btn" onClick={addTab}>+</button>
+        <button className="add-btn" onClick={addTab}>
+          +
+        </button>
+        {currentTaskName && (
+          <div
+            style={{
+              marginLeft: 'auto',
+              marginRight: '20px',
+              paddingBottom: '8px',
+              fontSize: '13px',
+              color: '#4caf50',
+              fontWeight: 'bold',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px'
+            }}
+          >
+            <span style={{ fontSize: '14px' }}>📋</span>
+            <span style={{ opacity: 0.8, color: '#9aa0a6', fontWeight: 'normal' }}>当前任务:</span>
+            <span>{currentTaskName}</span>
+          </div>
+        )}
       </div>
-      <header className='header'>
-        <input 
-          value={url} 
+      <header className="header">
+        <input
+          value={url}
           onChange={(e) => setUrl(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && handleGo()}
-          className='urlInput'
+          className="urlInput"
         />
-        <button onClick={handleGo} className='button goButton'>前往</button>
-        <button onClick={handleCapture} disabled={isCapturing} className='button captureButton'>📸 截图</button>
+        <button onClick={handleGo} className="button goButton">
+          前往
+        </button>
+        <button onClick={handleCapture} disabled={isCapturing} className="button captureButton">
+          📸 截图
+        </button>
         {!isRecording ? (
-          <button onClick={startGlobalRecording} className='button recordButton'>🎥 录屏</button>
+          <button onClick={startGlobalRecording} className="button recordButton">
+            🎥 录屏
+          </button>
         ) : (
-          <button onClick={stopGlobalRecording} className='button' style={{ background: '#fff', color: 'red' }}>⏹ 停止</button>
+          <button
+            onClick={stopGlobalRecording}
+            className="button"
+            style={{ background: '#fff', color: 'red' }}
+          >
+            ⏹ 停止
+          </button>
         )}
+        <button onClick={handleCapture} disabled={isCapturing} className="button captureButton">
+          上传固证
+        </button>
       </header>
       {/* 這裡下方會留白，由主進程把 BrowserView 疊加上去 */}
       <div id="browser-container" style={{ flex: 1, position: 'relative' }}>
-         {tabs.find(t => t.id === activeTabId)?.url?.includes('about:blank') && (
-            <div style={{ 
-              position: 'absolute', 
-              top: 0, 
-              left: 0, 
-              right: 0, 
-              bottom: 0, 
+        {tabs.find((t) => t.id === activeTabId)?.url?.includes('about:blank') && (
+          <div
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
               zIndex: 999, // 確保在最上層
               backgroundColor: '#1a1a1a' // 給一個背景色防止透明看穿到後台
-            }}>
-              <Home onNewTask={handleOpenModal} />
-            </div>
-          )}
+            }}
+          >
+            <Home onNewTask={handleOpenModal} onTaskLists={handleTaskLists} />
+          </div>
+        )}
       </div>
-      {showModal && (
-        <NewTaskModal 
-          onSave={handleSaveTask} 
-          onCancel={() => setShowModal(false)} />
+      {showModal && <NewTaskModal onSave={handleSaveTask} onCancel={() => setShowModal(false)} />}
+      {showTaskListModal && (
+        <TaskListModal tasks={taskList} onClose={() => setShowTaskListModal(false)} />
       )}
-    </div>    
+    </div>
   )
 }
 

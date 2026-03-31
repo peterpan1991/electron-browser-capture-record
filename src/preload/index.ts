@@ -1,26 +1,29 @@
-import { contextBridge, ipcRenderer  } from 'electron'
+import { contextBridge, ipcRenderer } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
 
 // Custom APIs for renderer
 const api = {
-  onLoadingStatus: (callback: (status: any) => void) => {
+  onLoadingStatus: (callback: (status: { loading: boolean; progress: number }) => void) => {
     ipcRenderer.on('loading-status', (_event, value) => callback(value))
   },
 
-  capturePage: () => ipcRenderer.invoke('capture-page'),
+  capturePage: (id: number) => ipcRenderer.invoke('capture-page', id),
 
   getSources: () => ipcRenderer.invoke('get-sources'),
-  saveVideo: (data: { buffer: ArrayBuffer; mimeType: string }) => ipcRenderer.invoke('save-video', data),
-  
+  saveVideo: (data: { buffer: ArrayBuffer; mimeType: string }) =>
+    ipcRenderer.invoke('save-video', data),
+
   createTab: (id: number, url: string) => ipcRenderer.invoke('create-tab', id, url),
   switchTab: (id: number) => ipcRenderer.invoke('switch-tab', id),
 
   loadUrl: (id: number, url: string) => ipcRenderer.invoke('load-url', id, url),
 
-  onUpdateTitle: (callback: (data: { id: number; title: string }) => void) => ipcRenderer.on('update-tab-title', (_event, value) => callback(value)),
+  onUpdateTitle: (callback: (data: { id: number; title: string }) => void) =>
+    ipcRenderer.on('update-tab-title', (_event, value) => callback(value)),
 
   getTabUrl: (id: number) => ipcRenderer.invoke('get-tab-url', id),
-  onUpdateUrl: (callback: (data: { id: number; url: string }) => void) => ipcRenderer.on('update-tab-url', (_event, value) => callback(value)),
+  onUpdateUrl: (callback: (data: { id: number; url: string }) => void) =>
+    ipcRenderer.on('update-tab-url', (_event, value) => callback(value)),
 
   removeTab: (id: number) => ipcRenderer.invoke('remove-tab', id),
 
@@ -35,7 +38,7 @@ const api = {
 if (process.contextIsolated) {
   try {
     contextBridge.exposeInMainWorld('electron', electronAPI)
-    contextBridge.exposeInMainWorld('api', api)    
+    contextBridge.exposeInMainWorld('api', api)
   } catch (error) {
     console.error(error)
   }
