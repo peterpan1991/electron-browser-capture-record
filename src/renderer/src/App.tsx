@@ -16,6 +16,14 @@ function App(): ReactElement {
   const [, setLoading] = useState(false)
   const [progress, setProgress] = useState(0)
   const [isCapturing, setIsCapturing] = useState(false)
+  const [recordingTime, setRecordingTime] = useState(0)
+  const timerRef = useRef<NodeJS.Timeout | null>(null)
+
+  const formatTime = (seconds: number): string => {
+    const min = Math.floor(seconds / 60)
+    const sec = seconds % 60
+    return `${min.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}`
+  }
 
   //标签页
   const [tabs, setTabs] = useState([{ id: 1, title: '新标签页', url: 'about:blank' }])
@@ -108,18 +116,27 @@ function App(): ReactElement {
 
       await window.api.saveVideo({
         buffer,
-        mimeType: recorder.mimeType // 例如: "video/mp4; codecs=h264"
+        mimeType: recorder.mimeType, // 例如: "video/mp4; codecs=h264"
+        savePath: currentTask?.savePath
       })
       stream.getTracks().forEach((track) => track.stop()) // 關閉攝像頭訊號
     }
 
     recorder.start()
     setIsRecording(true)
+    setRecordingTime(0)
+    timerRef.current = setInterval(() => {
+      setRecordingTime((prev) => prev + 1)
+    }, 1000)
   }
 
   const stopGlobalRecording = (): void => {
     mediaRecorderRef.current?.stop()
     setIsRecording(false)
+    if (timerRef.current) {
+      clearInterval(timerRef.current)
+      timerRef.current = null
+    }
   }
 
   const handleGo = async (): Promise<void> => {
@@ -137,7 +154,7 @@ function App(): ReactElement {
   const handleCapture = async (): Promise<void> => {
     setIsCapturing(true)
     try {
-      const result = await window.api.capturePage(activeTabId)
+      const result = await window.api.capturePage(activeTabId, currentTask?.savePath)
       if (result.success) {
         alert('截图已保存！')
       }
@@ -152,7 +169,7 @@ function App(): ReactElement {
   const [showModal, setShowModal] = useState(false)
   const [showTaskListModal, setShowTaskListModal] = useState(false)
   const [taskList, setTaskList] = useState<Task[]>([])
-  const [currentTaskName, setCurrentTaskName] = useState('')
+  const [currentTask, setCurrentTask] = useState<Task | null>(null)
 
   const handleOpenModal = (): void => {
     setShowModal(true)
@@ -162,7 +179,7 @@ function App(): ReactElement {
     const result = await window.api.saveTask(data)
     if (result.success) {
       setShowModal(false)
-      setCurrentTaskName(data.name)
+      setCurrentTask(result.task as unknown as Task) // result.task is the new task object
       // 重新獲取列表
       const list = await window.api.getTasks()
       setTaskList(list)
@@ -170,9 +187,24 @@ function App(): ReactElement {
   }
 
   const handleTaskLists = async (): Promise<void> => {
+    // 如果當前不是約定好的空白頁 (about:blank)，先自動開啟一個新標籤頁
+    // 這樣可以避免 TaskListModal 被 BrowserView (網頁內容) 遮擋
+    if (!url || url === '' || !url.includes('about:blank')) {
+      await addTab()
+    }
     const list = await window.api.getTasks()
     setTaskList(list)
     setShowTaskListModal(true)
+  }
+
+  const handleDeleteTask = async (id: string): Promise<void> => {
+    if (!window.confirm('確定要刪除此任務嗎？（此操作不会删除本地文件）')) return
+
+    const result = await window.api.deleteTask(id)
+    if (result.success) {
+      const list = await window.api.getTasks()
+      setTaskList(list)
+    }
   }
 
   useEffect(() => {
@@ -253,23 +285,14 @@ function App(): ReactElement {
         <button className="add-btn" onClick={addTab}>
           +
         </button>
-        {currentTaskName && (
-          <div
-            style={{
-              marginLeft: 'auto',
-              marginRight: '20px',
-              paddingBottom: '8px',
-              fontSize: '13px',
-              color: '#4caf50',
-              fontWeight: 'bold',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px'
-            }}
-          >
+        {currentTask && (
+          <div className="no-drag-region current-task-box">
             <span style={{ fontSize: '14px' }}>📋</span>
             <span style={{ opacity: 0.8, color: '#9aa0a6', fontWeight: 'normal' }}>当前任务:</span>
-            <span>{currentTaskName}</span>
+            <span>{currentTask.name}</span>
+            <button onClick={handleTaskLists} className="no-drag-region list-btn">
+              列表
+            </button>
           </div>
         )}
       </div>
@@ -291,13 +314,37 @@ function App(): ReactElement {
             🎥 录屏
           </button>
         ) : (
-          <button
-            onClick={stopGlobalRecording}
-            className="button"
-            style={{ background: '#fff', color: 'red' }}
-          >
-            ⏹ 停止
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <div
+              style={{
+                color: '#ff4d4f',
+                fontWeight: 'bold',
+                fontSize: '14px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px'
+              }}
+            >
+              <span
+                style={{
+                  width: '8px',
+                  height: '8px',
+                  backgroundColor: '#ff4d4f',
+                  borderRadius: '50%',
+                  display: 'inline-block',
+                  animation: 'pulse 1s infinite'
+                }}
+              />
+              {formatTime(recordingTime)}
+            </div>
+            <button
+              onClick={stopGlobalRecording}
+              className="button"
+              style={{ background: '#fff', color: 'red' }}
+            >
+              ⏹ 停止
+            </button>
+          </div>
         )}
         <button onClick={handleCapture} disabled={isCapturing} className="button captureButton">
           上传固证
@@ -306,24 +353,22 @@ function App(): ReactElement {
       {/* 這裡下方會留白，由主進程把 BrowserView 疊加上去 */}
       <div id="browser-container" style={{ flex: 1, position: 'relative' }}>
         {tabs.find((t) => t.id === activeTabId)?.url?.includes('about:blank') && (
-          <div
-            style={{
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              zIndex: 999, // 確保在最上層
-              backgroundColor: '#1a1a1a' // 給一個背景色防止透明看穿到後台
-            }}
-          >
+          <div className="home-box">
             <Home onNewTask={handleOpenModal} onTaskLists={handleTaskLists} />
           </div>
         )}
       </div>
       {showModal && <NewTaskModal onSave={handleSaveTask} onCancel={() => setShowModal(false)} />}
       {showTaskListModal && (
-        <TaskListModal tasks={taskList} onClose={() => setShowTaskListModal(false)} />
+        <TaskListModal
+          tasks={taskList}
+          onClose={() => setShowTaskListModal(false)}
+          onSelect={(task) => {
+            setCurrentTask(task)
+            setShowTaskListModal(false)
+          }}
+          onDelete={handleDeleteTask}
+        />
       )}
     </div>
   )

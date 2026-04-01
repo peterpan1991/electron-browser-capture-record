@@ -7,10 +7,10 @@ const api = {
     ipcRenderer.on('loading-status', (_event, value) => callback(value))
   },
 
-  capturePage: (id: number) => ipcRenderer.invoke('capture-page', id),
+  capturePage: (id: number, savePath?: string) => ipcRenderer.invoke('capture-page', id, savePath),
 
   getSources: () => ipcRenderer.invoke('get-sources'),
-  saveVideo: (data: { buffer: ArrayBuffer; mimeType: string }) =>
+  saveVideo: (data: { buffer: ArrayBuffer; mimeType: string; savePath?: string }) =>
     ipcRenderer.invoke('save-video', data),
 
   createTab: (id: number, url: string) => ipcRenderer.invoke('create-tab', id, url),
@@ -29,7 +29,8 @@ const api = {
 
   selectDirectory: () => ipcRenderer.invoke('select-directory'),
   saveTask: (task: { name: string; savePath: string }) => ipcRenderer.invoke('save-task', task),
-  getTasks: () => ipcRenderer.invoke('get-tasks')
+  getTasks: () => ipcRenderer.invoke('get-tasks'),
+  deleteTask: (id: string) => ipcRenderer.invoke('delete-task', id)
 }
 
 // Use `contextBridge` APIs to expose Electron APIs to

@@ -12,6 +12,8 @@ import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import fs from 'fs'
 import path from 'path'
+import crypto from 'crypto'
+import sharp from 'sharp'
 import { Task } from '../shared/types'
 
 function createWindow(): void {
@@ -121,27 +123,65 @@ function createWindow(): void {
     updateViewBounds()
   })
 
-  ipcMain.handle('capture-page', async (_event, id: number) => {
+  ipcMain.handle('capture-page', async (_event, id: number, taskSavePath?: string) => {
     const targetView = views.get(id)
     if (!targetView) {
       return { success: false, message: '找不到对应的分页视图' }
     }
 
     const image = await targetView.webContents.capturePage()
-    const png = image.toPNG() // 轉為 PNG 格式的 Buffer
+    const png = image.toPNG()
 
-    // 弹出保存对话框
-    const { filePath } = await dialog.showSaveDialog({
-      title: '存储截图',
-      defaultPath: path.join(app.getPath('downloads'), `screenshot-${Date.now()}.png`),
-      filters: [{ name: 'Images', extensions: ['png'] }]
-    })
+    if (png.length === 0) {
+      return { success: false, message: '截图失败：捕获到的画面为空' }
+    }
+
+    let filePath: string | undefined = undefined
+
+    if (taskSavePath && fs.existsSync(taskSavePath)) {
+      filePath = path.join(taskSavePath, `screenshot-${Date.now()}.png`)
+    } else {
+      // 弹出保存对话框
+      const result = await dialog.showSaveDialog({
+        title: '存储截图',
+        defaultPath: path.join(app.getPath('downloads'), `screenshot-${Date.now()}.png`),
+        filters: [{ name: 'Images', extensions: ['png'] }]
+      })
+      filePath = result.filePath
+    }
 
     if (filePath) {
-      fs.writeFileSync(filePath, png)
+      // 計算 SHA256 哈希
+      const hash = crypto.createHash('sha256').update(png).digest('hex')
+
+      // 在左下角添加 SHA256 哈希浮水印
+      const metadata = await sharp(png).metadata()
+      const w = metadata.width || 0
+      const h = metadata.height || 0
+
+      // 生成浮水印圖形 (SVG)
+      const watermarkText = `SHA256: ${hash}`
+      const svg = `
+        <svg width="${w}" height="30">
+          <rect x="5" y="5" width="${watermarkText.length * 10 + 20}" height="20" rx="5" fill="rgba(0,0,0,0.6)" />
+          <text x="10" y="20" font-family="monospace" font-size="12" fill="white">${watermarkText}</text>
+        </svg>
+      `
+      const watermarkedPng = await sharp(png)
+        .composite([
+          {
+            input: Buffer.from(svg),
+            top: Math.max(0, h - 45), // 距離底部 45px
+            left: 0
+          }
+        ])
+        .png()
+        .toBuffer()
+
+      fs.writeFileSync(filePath, watermarkedPng)
       // 儲存後自動開啟該資料夾並選中檔案
       shell.showItemInFolder(filePath)
-      return { success: true, path: filePath }
+      return { success: true, path: filePath, hash }
     }
 
     return { success: false }
@@ -157,16 +197,23 @@ function createWindow(): void {
     }))
   })
 
-  ipcMain.handle('save-video', async (_, { buffer, mimeType }) => {
+  ipcMain.handle('save-video', async (_, { buffer, mimeType, savePath: taskSavePath }) => {
     const isMp4 = mimeType.includes('video/mp4')
     const ext = isMp4 ? 'mp4' : 'webm'
 
-    // 弹出保存对话框
-    const { filePath } = await dialog.showSaveDialog({
-      title: '存储视频',
-      defaultPath: path.join(app.getPath('downloads'), `video-${Date.now()}.${ext}`),
-      filters: [{ name: 'Videos', extensions: [ext] }]
-    })
+    let filePath: string | undefined = undefined
+
+    if (taskSavePath && fs.existsSync(taskSavePath)) {
+      filePath = path.join(taskSavePath, `video-${Date.now()}.${ext}`)
+    } else {
+      // 弹出保存对话框
+      const result = await dialog.showSaveDialog({
+        title: '存储视频',
+        defaultPath: path.join(app.getPath('downloads'), `video-${Date.now()}.${ext}`),
+        filters: [{ name: 'Videos', extensions: [ext] }]
+      })
+      filePath = result.filePath
+    }
 
     if (filePath) {
       fs.writeFileSync(filePath, Buffer.from(buffer))
@@ -325,6 +372,22 @@ function createWindow(): void {
 
   // 3. 獲取所有任務
   ipcMain.handle('get-tasks', () => tasks)
+
+  // 4. 刪除任務
+  ipcMain.handle('delete-task', async (_event, id: string) => {
+    const index = tasks.findIndex((t) => t.id === id)
+    if (index !== -1) {
+      tasks.splice(index, 1)
+      try {
+        fs.writeFileSync(tasksPath, JSON.stringify(tasks, null, 2), 'utf8')
+        return { success: true }
+      } catch (err) {
+        console.error('刪除任務失敗:', err)
+        return { success: false, error: String(err) }
+      }
+    }
+    return { success: false, error: '找不到該任務' }
+  })
 }
 
 // This method will be called when Electron has finished

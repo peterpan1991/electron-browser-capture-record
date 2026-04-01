@@ -4,9 +4,16 @@ import { Task } from '../../../shared/types'
 interface TaskListModalProps {
   tasks: Task[]
   onClose: () => void
+  onSelect: (task: Task) => void
+  onDelete: (id: string) => void
 }
 
-export default function TaskListModal({ tasks, onClose }: TaskListModalProps): ReactElement {
+export default function TaskListModal({
+  tasks,
+  onClose,
+  onSelect,
+  onDelete
+}: TaskListModalProps): ReactElement {
   return (
     <div
       style={{
@@ -19,7 +26,7 @@ export default function TaskListModal({ tasks, onClose }: TaskListModalProps): R
         display: 'flex',
         justifyContent: 'center',
         alignItems: 'center',
-        zIndex: 9999
+        zIndex: 9999999
       }}
     >
       <div
@@ -27,7 +34,7 @@ export default function TaskListModal({ tasks, onClose }: TaskListModalProps): R
           background: '#333',
           padding: '20px',
           borderRadius: '8px',
-          width: '600px',
+          width: '800px',
           maxHeight: '80vh',
           display: 'flex',
           flexDirection: 'column'
@@ -66,6 +73,7 @@ export default function TaskListModal({ tasks, onClose }: TaskListModalProps): R
                   <th style={{ padding: '10px' }}>名称</th>
                   <th style={{ padding: '10px' }}>保存路径</th>
                   <th style={{ padding: '10px' }}>创建時間</th>
+                  <th style={{ padding: '10px' }}>操作</th>
                 </tr>
               </thead>
               <tbody>
@@ -77,6 +85,32 @@ export default function TaskListModal({ tasks, onClose }: TaskListModalProps): R
                     </td>
                     <td style={{ padding: '10px', fontSize: '12px' }}>
                       {new Date(task.createdAt).toLocaleString()}
+                    </td>
+                    <td style={{ padding: '10px', fontSize: '12px', display: 'flex', gap: '8px' }}>
+                      <button
+                        onClick={() => onSelect(task)}
+                        style={{
+                          background: '#4caf50',
+                          border: 'none',
+                          color: 'white',
+                          borderRadius: '4px',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        选择
+                      </button>
+                      <button
+                        onClick={() => onDelete(task.id)}
+                        style={{
+                          background: '#f44336',
+                          border: 'none',
+                          color: 'white',
+                          borderRadius: '4px',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        删除
+                      </button>
                     </td>
                   </tr>
                 ))}

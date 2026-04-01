@@ -3,9 +3,16 @@ import { Task } from '../shared/types'
 
 interface Api {
   onLoadingStatus: (callback: (status: { loading: boolean; progress: number }) => void) => void
-  capturePage: (id: number) => Promise<{ success: boolean }>
+  capturePage: (
+    id: number,
+    savePath?: string
+  ) => Promise<{ success: boolean; path?: string; hash?: string }>
   getSources: () => Promise<{ id: string; name: string }[]>
-  saveVideo: (data: { buffer: ArrayBuffer; mimeType: string }) => Promise<{ success: boolean }>
+  saveVideo: (data: {
+    buffer: ArrayBuffer
+    mimeType: string
+    savePath?: string
+  }) => Promise<{ success: boolean; path?: string }>
   createTab: (id: number, url: string) => Promise<{ success: boolean; error?: string }>
   switchTab: (id: number) => Promise<{ success: boolean; message?: string }>
   loadUrl: (id: number, url: string) => Promise<{ success: boolean; message?: string }>
@@ -19,6 +26,7 @@ interface Api {
     savePath: string
   }) => Promise<{ success: boolean; task: Task[] }>
   getTasks: () => Promise<Task[]>
+  deleteTask: (id: string) => Promise<{ success: boolean; error?: string }>
 }
 
 declare global {
