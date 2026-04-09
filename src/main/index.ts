@@ -12,9 +12,21 @@ import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import fs from 'fs'
 import path from 'path'
-import crypto from 'crypto'
-import sharp from 'sharp'
+import smCrypto from 'sm-crypto'
+import archiver from 'archiver'
 import { Task } from '../shared/types'
+import {
+  loginAPI,
+  authManager,
+  userAPI,
+  ApiResponse,
+  LoginResponse,
+  User,
+  evidenceAPI,
+  EvidenceRecord,
+  balanceAPI,
+  BalanceRecord
+} from './services/api'
 
 function createWindow(): void {
   // Create the browser window.
@@ -30,17 +42,13 @@ function createWindow(): void {
     }
   })
 
+  const INFO_BAR_HEIGHT = 30
   const TAB_BAR_HEIGHT = 38
   const HEADER_HEIGHT = 43
-  const TOOLBAR_TOTAL_HEIGHT = TAB_BAR_HEIGHT + HEADER_HEIGHT
+  const TOOLBAR_TOTAL_HEIGHT = INFO_BAR_HEIGHT + TAB_BAR_HEIGHT + HEADER_HEIGHT
 
   const views = new Map<number, WebContentsView>()
-
-  const view = new WebContentsView()
-  mainWindow.contentView.addChildView(view)
-  view.setBounds({ x: 0, y: 0, width: 0, height: 0 })
-  views.set(1, view)
-  view.webContents.loadURL('about:blank')
+  let activeTabId = 1
 
   ipcMain.handle('load-url', async (_event, id: number, targetUrl: string) => {
     const view = views.get(id) // 這裡的 views 是你存放分頁的 Map
@@ -53,15 +61,8 @@ function createWindow(): void {
           finalUrl = 'https://' + targetUrl
         }
 
-        // 先隱藏其他視圖，再顯示當前視圖（在 loadURL 之前，避免 Home 消失後露出背景）
-        views.forEach((v) => v.setBounds({ x: 0, y: 0, width: 0, height: 0 }))
-        const { width, height } = mainWindow.getContentBounds()
-        view.setBounds({
-          x: 0,
-          y: TOOLBAR_TOTAL_HEIGHT,
-          width: width,
-          height: height - TOOLBAR_TOTAL_HEIGHT
-        })
+        activeTabId = id
+        updateViewBounds()
 
         await view.webContents.loadURL(finalUrl)
         return { success: true }
@@ -71,18 +72,6 @@ function createWindow(): void {
     }
 
     return { success: false, message: '找不到对应的分页视图' }
-  })
-
-  view.webContents.on('did-start-loading', () => {
-    mainWindow.webContents.send('loading-status', { loading: true, progress: 30 })
-  })
-
-  view.webContents.on('did-stop-loading', () => {
-    mainWindow.webContents.send('loading-status', { loading: false, progress: 100 })
-  })
-
-  view.webContents.on('dom-ready', () => {
-    mainWindow.webContents.send('loading-status', { loading: true, progress: 70 })
   })
 
   mainWindow.on('ready-to-show', () => {
@@ -105,15 +94,21 @@ function createWindow(): void {
   // 封裝一個更新大小的函式（更新當前可見的視圖）
   const updateViewBounds = (): void => {
     const { width, height } = mainWindow.getContentBounds()
-    views.forEach((v) => {
-      const url = v.webContents.getURL()
-      if (url !== 'about:blank' && url !== '') {
-        v.setBounds({
-          x: 0,
-          y: TOOLBAR_TOTAL_HEIGHT,
-          width: width,
-          height: height - TOOLBAR_TOTAL_HEIGHT
-        })
+    views.forEach((v, id) => {
+      if (id === activeTabId) {
+        const url = v.webContents.getURL()
+        if (url !== 'about:blank' && url !== '') {
+          v.setBounds({
+            x: 0,
+            y: TOOLBAR_TOTAL_HEIGHT,
+            width: width,
+            height: height - TOOLBAR_TOTAL_HEIGHT
+          })
+        } else {
+          v.setBounds({ x: 0, y: 0, width: 0, height: 0 })
+        }
+      } else {
+        v.setBounds({ x: 0, y: 0, width: 0, height: 0 })
       }
     })
   }
@@ -151,34 +146,17 @@ function createWindow(): void {
     }
 
     if (filePath) {
-      // 計算 SHA256 哈希
-      const hash = crypto.createHash('sha256').update(png).digest('hex')
+      // 計算 SM3 哈希
+      const hash = smCrypto.sm3(png)
 
-      // 在左下角添加 SHA256 哈希浮水印
-      const metadata = await sharp(png).metadata()
-      const w = metadata.width || 0
-      const h = metadata.height || 0
+      fs.writeFileSync(filePath, png)
 
-      // 生成浮水印圖形 (SVG)
-      const watermarkText = `SHA256: ${hash}`
-      const svg = `
-        <svg width="${w}" height="30">
-          <rect x="5" y="5" width="${watermarkText.length * 10 + 20}" height="20" rx="5" fill="rgba(0,0,0,0.6)" />
-          <text x="10" y="20" font-family="monospace" font-size="12" fill="white">${watermarkText}</text>
-        </svg>
-      `
-      const watermarkedPng = await sharp(png)
-        .composite([
-          {
-            input: Buffer.from(svg),
-            top: Math.max(0, h - 45), // 距離底部 45px
-            left: 0
-          }
-        ])
-        .png()
-        .toBuffer()
+      // 寫入 hash.csv
+      const csvPath = path.join(path.dirname(filePath), 'hash.csv')
+      const fileName = path.basename(filePath)
+      const csvLine = `${fileName},${hash}\n`
+      fs.appendFileSync(csvPath, csvLine)
 
-      fs.writeFileSync(filePath, watermarkedPng)
       // 儲存後自動開啟該資料夾並選中檔案
       shell.showItemInFolder(filePath)
       return { success: true, path: filePath, hash }
@@ -216,7 +194,18 @@ function createWindow(): void {
     }
 
     if (filePath) {
-      fs.writeFileSync(filePath, Buffer.from(buffer))
+      const fileBuffer = Buffer.from(buffer)
+      fs.writeFileSync(filePath, fileBuffer)
+
+      // 計算 SM3 哈希
+      const hash = smCrypto.sm3(fileBuffer)
+
+      // 寫入 hash.csv
+      const csvPath = path.join(path.dirname(filePath), 'hash.csv')
+      const fileName = path.basename(filePath)
+      const csvLine = `${fileName},${hash}\n`
+      fs.appendFileSync(csvPath, csvLine)
+
       // 儲存後自動開啟該資料夾並選中檔案
       shell.showItemInFolder(filePath)
       return { success: true, path: filePath }
@@ -236,6 +225,11 @@ function createWindow(): void {
 
       view.webContents.on('did-navigate', (_e, newUrl) => {
         mainWindow.webContents.send('update-tab-url', { id, url: newUrl })
+        updateViewBounds() // 重要：導航到 about:blank 時需要隱藏視圖，顯示 Home
+      })
+
+      view.webContents.on('did-navigate-in-page', (_e, newUrl) => {
+        mainWindow.webContents.send('update-tab-url', { id, url: newUrl })
       })
 
       view.webContents.on('did-start-loading', () => {
@@ -248,6 +242,12 @@ function createWindow(): void {
 
       view.webContents.on('dom-ready', () => {
         mainWindow.webContents.send('loading-status', { loading: true, progress: 70 })
+      })
+
+      // 网页请求打开新窗口时，通知渲染进程创建新标签页
+      view.webContents.setWindowOpenHandler(({ url }) => {
+        mainWindow.webContents.send('new-tab-request', { url })
+        return { action: 'deny' }
       })
 
       mainWindow.contentView.addChildView(view)
@@ -265,45 +265,19 @@ function createWindow(): void {
     }
   })
 
-  ipcMain.handle('switch-tab', async (_event, id: number) => {
+  ipcMain.handle('switch-tab', (_event, id: number) => {
     if (views.has(id)) {
-      showView(id)
+      activeTabId = id
+      updateViewBounds()
       return { success: true }
     }
     return { success: false, message: '找不到該分頁' }
   })
 
   function showView(id: number): void {
-    const targetView = views.get(id)
-    if (!targetView) return
-
-    // 隱藏舊的，顯示新的。錄製視窗的 MediaRecorder 會無縫拍到新的 View
-    views.forEach((v) => v.setBounds({ x: 0, y: 0, width: 0, height: 0 }))
-
-    const url = targetView.webContents.getURL()
-    if (url === 'about:blank' || url === '') {
-      targetView.setBounds({ x: 0, y: 0, width: 0, height: 0 })
-      return
-    }
-
-    const { width, height } = mainWindow.getContentBounds()
-
-    // 立即設定正確的大小
-    targetView.setBounds({
-      x: 0,
-      y: TOOLBAR_TOTAL_HEIGHT,
-      width: width,
-      height: height - TOOLBAR_TOTAL_HEIGHT
-    })
+    activeTabId = id
+    updateViewBounds()
   }
-
-  // 在建立 view 時加入：
-  view.webContents.setWindowOpenHandler(({ url }) => {
-    // 通知 React 增加一個 Tab
-    mainWindow.webContents.send('new-tab-request', url)
-    // 回傳 deny 阻止 Electron 彈出新視窗
-    return { action: 'deny' }
-  })
 
   ipcMain.handle('get-tab-url', (_event, id: number) => {
     const view = views.get(id)
@@ -313,13 +287,41 @@ function createWindow(): void {
   ipcMain.handle('remove-tab', async (_event, id: number) => {
     const view = views.get(id)
     if (view) {
-      // 1. 從視窗中移除
       mainWindow.contentView.removeChildView(view)
-      // 2. 銷毀內容（釋放記憶體）
-      // @ts-ignore (新版 Electron API 可能需要直接呼叫 webContents.destroy)
+      // 2. 銷毀內容
+      // @ts-ignore: Method might not be available in current typings
       view.webContents.destroy()
       // 3. 從 Map 中刪除
       views.delete(id)
+      return { success: true }
+    }
+    return { success: false }
+  })
+
+  ipcMain.handle('go-back', async (_event, id: number) => {
+    const view = views.get(id)
+    if (view && view.webContents.navigationHistory.canGoBack()) {
+      activeTabId = id
+      view.webContents.navigationHistory.goBack()
+      return { success: true }
+    }
+    return { success: false }
+  })
+
+  ipcMain.handle('go-forward', async (_event, id: number) => {
+    const view = views.get(id)
+    if (view && view.webContents.navigationHistory.canGoForward()) {
+      activeTabId = id
+      view.webContents.navigationHistory.goForward()
+      return { success: true }
+    }
+    return { success: false }
+  })
+
+  ipcMain.handle('refresh-tab', async (_event, id: number) => {
+    const view = views.get(id)
+    if (view) {
+      view.webContents.reload()
       return { success: true }
     }
     return { success: false }
@@ -349,6 +351,61 @@ function createWindow(): void {
       properties: ['openDirectory']
     })
     return canceled ? null : filePaths[0]
+  })
+
+  // 讓使用者選擇多個文件
+  ipcMain.handle('select-files', async () => {
+    const { canceled, filePaths } = await dialog.showOpenDialog({
+      properties: ['openFile', 'multiSelections'],
+      filters: [{ name: 'All Files', extensions: ['*'] }]
+    })
+    return canceled ? [] : filePaths
+  })
+
+  // 打包文件为 ZIP 并计算 hash
+  ipcMain.handle('package-files', async (_event, filePaths: string[], savePath: string) => {
+    return new Promise((resolve) => {
+      const zipFileName = `evidence-${Date.now()}.zip`
+      const zipPath = path.join(savePath, zipFileName)
+      const output = fs.createWriteStream(zipPath)
+      const archive = archiver('zip', { zlib: { level: 9 } })
+
+      output.on('close', () => {
+        const zipSize = archive.pointer()
+        const zipBuffer = fs.readFileSync(zipPath)
+        const hash = smCrypto.sm3(zipBuffer)
+
+        // 写入 hash.csv
+        const csvPath = path.join(savePath, 'hash.csv')
+        const csvLine = `${zipFileName},${hash}\n`
+        fs.appendFileSync(csvPath, csvLine)
+
+        resolve({
+          success: true,
+          fileCount: filePaths.length,
+          fileSize: zipSize,
+          hash,
+          zipPath: zipPath
+        })
+      })
+
+      archive.on('error', (err) => {
+        console.error('打包失败:', err)
+        if (fs.existsSync(zipPath)) {
+          fs.unlinkSync(zipPath)
+        }
+        resolve({ success: false, message: err.message })
+      })
+
+      archive.pipe(output)
+
+      for (const filePath of filePaths) {
+        const fileName = path.basename(filePath)
+        archive.file(filePath, { name: fileName })
+      }
+
+      archive.finalize()
+    })
   })
 
   // 2. 儲存新任務
@@ -388,6 +445,64 @@ function createWindow(): void {
     }
     return { success: false, error: '找不到該任務' }
   })
+
+  // ========== API 相关 IPC 处理器 ==========
+
+  // 登录
+  ipcMain.handle(
+    'api:login',
+    async (_event, email: string, password: string): Promise<ApiResponse<LoginResponse>> => {
+      return await loginAPI.login(email, password)
+    }
+  )
+
+  // 登出
+  ipcMain.handle('api:logout', async (): Promise<ApiResponse> => {
+    return await loginAPI.logout()
+  })
+
+  // 获取用户信息
+  ipcMain.handle('api:get-user', (): User | null => {
+    return authManager.getUser()
+  })
+
+  // 从后端获取用户信息
+  ipcMain.handle('api:get-user-info', async (): Promise<ApiResponse<{ user: User }>> => {
+    return await userAPI.getUserInfo()
+  })
+
+  // 检查是否已登录
+  ipcMain.handle('api:is-authenticated', (): boolean => {
+    return authManager.isAuthenticated()
+  })
+
+  // 创建固证记录
+  ipcMain.handle(
+    'api:evidence-create',
+    async (
+      _event,
+      params: { file_name: string; file_size: number; file_count: number; file_hash: string }
+    ): Promise<ApiResponse> => {
+      return await evidenceAPI.create(params)
+    }
+  )
+
+  ipcMain.handle('api:evidence-list', async (_event, page: number = 1, perPage: number = 10): Promise<ApiResponse<{ list: EvidenceRecord[]; total: number }>> => {
+    return await evidenceAPI.list(page, perPage)
+  })
+
+  ipcMain.handle('api:evidence-certificate-apply', async (_event, id: number): Promise<ApiResponse> => {
+    return await evidenceAPI.applyCertificate(id)
+  })
+
+  ipcMain.handle('api:balance-list', async (_event, page: number = 1, perPage: number = 10): Promise<ApiResponse<{ list: BalanceRecord[]; total: number; balance: string }>> => {
+    return await balanceAPI.list(page, perPage)
+  })
+
+  ipcMain.handle('api:query-block-chain', async (_event, id: number): Promise<ApiResponse> => {
+    return await evidenceAPI.queryBlockChain(id)
+  })
+
 }
 
 // This method will be called when Electron has finished

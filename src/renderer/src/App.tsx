@@ -2,7 +2,10 @@ import { useEffect, useState, useRef, ReactElement } from 'react'
 import Home from './components/Home'
 import NewTaskModal from './components/NewTaskModal'
 import TaskListModal from './components/TaskListModal'
+import LoginModal from './components/LoginModal'
+import ProfileModal from './components/ProfileModal'
 import { Task } from '../../shared/types'
+import { User, authManager, loginAPI, evidenceAPI } from './utils/api'
 
 interface DesktopTrackConstraints extends MediaTrackConstraints {
   mandatory?: {
@@ -26,12 +29,28 @@ function App(): ReactElement {
   }
 
   //标签页
-  const [tabs, setTabs] = useState([{ id: 1, title: '新标签页', url: 'about:blank' }])
-  const [activeTabId, setActiveTabId] = useState(1)
+  const [tabs, setTabs] = useState<
+    { id: number; title: string; url: string; type?: 'normal' }[]
+  >([])
+  const [activeTabId, setActiveTabId] = useState(0)
+
+  // 初始化时创建第一个标签页
+  useEffect(() => {
+    const initTab = async (): Promise<void> => {
+      const newId = Date.now()
+      const newTab = { id: newId, title: '新标签页', url: 'about:blank', type: 'normal' as const }
+      setTabs([newTab])
+      setActiveTabId(newId)
+      await window.api.createTab(newId, newTab.url)
+    }
+    if (tabs.length === 0) {
+      initTab()
+    }
+  }, [tabs.length])
 
   const addTab = async (): Promise<void> => {
     const newId = Date.now()
-    const newTab = { id: newId, title: '新标签页', url: 'about:blank' }
+    const newTab = { id: newId, title: '新标签页', url: 'about:blank', type: 'normal' as const }
 
     setTabs((prev) => [...prev, newTab])
     setActiveTabId(newId)
@@ -40,11 +59,9 @@ function App(): ReactElement {
   }
 
   const switchTab = async (id: number): Promise<void> => {
-    // 1. 先切換 React 介面上的標籤選中狀態（讓使用者立刻看到點擊回饋）
     setActiveTabId(id)
 
     try {
-      // 2. 等待主進程完成 View 的邊界調整與顯示
       const result = await window.api.switchTab(id)
 
       if (!result.success) {
@@ -59,9 +76,7 @@ function App(): ReactElement {
   }
 
   const removeTab = async (e: React.MouseEvent, id: number): Promise<void> => {
-    e.stopPropagation() // 防止觸發 switchTab 事件
-
-    // 1. 通知主進程銷毀 View
+    e.stopPropagation()
     await window.api.removeTab(id)
 
     // 2. 更新 React 狀態
@@ -165,11 +180,86 @@ function App(): ReactElement {
     }
   }
 
+  // 固证
+  const handleEvidence = async (): Promise<void> => {
+    if (!currentTask) {
+      alert('请先选择任务')
+      return
+    }
+
+    if (!currentUser) {
+      alert('请先登录')
+      return
+    }
+
+    const filePaths = await window.api.selectFiles()
+    if (filePaths.length === 0) {
+      return
+    }    
+
+    const confirmed = confirm(`你将上传${filePaths.length}个文件到区块链固证，是否确认上传？`)
+    if (!confirmed) {
+      return
+    }
+
+    try {
+      const result = await window.api.packageFiles(filePaths, currentTask.savePath)
+      if (!result.success) {
+        alert('打包失败: ' + result.message)
+        return
+      }
+
+      const fileName = `evidence-${Date.now()}.zip`
+      const response = await evidenceAPI.create({
+        file_name: fileName,
+        file_size: result.fileSize || 0,
+        file_count: result.fileCount || 0,
+        file_hash: result.hash || ''
+      })
+
+      if (response.success) {
+        alert('固证创建成功！请妥善保管源文件' + fileName)
+      } else {
+        alert('固证创建失败: ' + (response.message || response.error))
+      }
+    } catch (err) {
+      console.error('固证失败:', err)
+      alert('固证失败，请重试')
+    }
+  }
+
   //新建任务
   const [showModal, setShowModal] = useState(false)
   const [showTaskListModal, setShowTaskListModal] = useState(false)
+  const [showLoginModal, setShowLoginModal] = useState(false)
+  const [showProfileModal, setShowProfileModal] = useState(false)
   const [taskList, setTaskList] = useState<Task[]>([])
   const [currentTask, setCurrentTask] = useState<Task | null>(null)
+
+  // 用户登录状态
+  const [currentUser, setCurrentUser] = useState<User | null>(null)
+
+  // 初始化时检查登录状态
+  useEffect(() => {
+    const checkAuth = async (): Promise<void> => {
+      const user = await authManager.getUser()
+      const authenticated = await authManager.isAuthenticated()
+      if (user && authenticated) {
+        setCurrentUser(user)
+      }
+    }
+    checkAuth()
+
+    // 监听登出事件
+    const handleLogout = (): void => {
+      setCurrentUser(null)
+    }
+    window.addEventListener('auth:logout', handleLogout)
+
+    return () => {
+      window.removeEventListener('auth:logout', handleLogout)
+    }
+  }, [])
 
   const handleOpenModal = (): void => {
     setShowModal(true)
@@ -207,40 +297,91 @@ function App(): ReactElement {
     }
   }
 
+  const handleOnLogin = async (): Promise<void> => {
+    if (!url || url === '' || !url.includes('about:blank')) {
+      await addTab()
+    }
+    setShowLoginModal(true)
+  }
+
+  const handleLogin = (user: User): void => {
+    setCurrentUser(user)
+    setShowLoginModal(false)
+  }
+
+  const handleLogout = async (): Promise<void> => {
+    await loginAPI.logout()
+    setCurrentUser(null)
+  }
+
+  const handleOnProfile = async (): Promise<void> => {
+    if (!currentUser) {
+      alert('请先登录')
+      return
+    }
+    if (!url || url === '' || !url.includes('about:blank')) {
+      await addTab()
+    }
+    setShowProfileModal(true)
+  }
+
   useEffect(() => {
+    const cleanups: (() => void)[] = []
+
     // 监听来自主进程的进度通知
     if (window.api?.onLoadingStatus) {
-      window.api.onLoadingStatus(({ loading, progress }) => {
-        setLoading(loading)
-        setProgress(progress)
+      cleanups.push(
+        window.api.onLoadingStatus(({ loading, progress }) => {
+          setLoading(loading)
+          setProgress(progress)
 
-        // 加载完成后隐藏进度条
-        if (!loading) {
-          setTimeout(() => setProgress(0), 1000)
-        }
-      })
+          // 加载完成后隐藏进度条
+          if (!loading) {
+            setTimeout(() => setProgress(0), 1000)
+          }
+        })
+      )
     }
 
-    window.api.onUpdateTitle(({ id, title }) => {
-      setTabs((prevTabs) => {
-        // 確保找到對應的 tab 並產生一個「全新」的物件，觸發 React 渲染
-        return prevTabs.map((tab) => {
-          if (tab.id === id) {
-            return { ...tab, title: title } // 展開舊 tab，覆寫新 title
-          }
-          return tab
+    cleanups.push(
+      window.api.onUpdateTitle(({ id, title }) => {
+        setTabs((prevTabs) => {
+          // 確保找到對應的 tab 並產生一個「全新」的物件，觸發 React 渲染
+          return prevTabs.map((tab) => {
+            if (tab.id === id) {
+              return { ...tab, title: title } // 展開舊 tab，覆寫新 title
+            }
+            return tab
+          })
         })
       })
-    })
+    )
 
-    window.api.onUpdateUrl(({ id, url: newUrl }) => {
-      // 只有當更新的是「目前正在看」的分頁時，才更新地址欄
-      if (id === activeTabId) {
-        setUrl(newUrl)
-      }
-      // 同時更新 tabs 陣列紀錄
-      setTabs((prev) => prev.map((t) => (t.id === id ? { ...t, url: newUrl } : t)))
-    })
+    cleanups.push(
+      window.api.onUpdateUrl(({ id, url: newUrl }) => {
+        // 只有當更新的是「目前正在看」的分頁時，才更新地址欄
+        if (id === activeTabId) {
+          setUrl(newUrl)
+        }
+        // 同時更新 tabs 陣列紀錄
+        setTabs((prev) => prev.map((t) => (t.id === id ? { ...t, url: newUrl } : t)))
+      })
+    )
+
+    // 监听网页请求打开新窗口，创建新标签页
+    cleanups.push(
+      window.api.onNewTabRequest(async ({ url: newUrl }) => {
+        const newId = Date.now()
+        const newTab = { id: newId, title: '加载中...', url: newUrl }
+        setTabs((prev) => [...prev, newTab])
+        setActiveTabId(newId)
+        await window.api.createTab(newId, newUrl)
+      })
+    )
+
+    return () => {
+      cleanups.forEach((cleanup) => cleanup())
+    }
   }, [activeTabId])
 
   return (
@@ -251,6 +392,119 @@ function App(): ReactElement {
           style={{ width: `${progress}%` }} // 动态宽度保留行内样式，或完全用 state 控制类名
         />
       )}
+      {/* 0. Info Bar */}
+      <div
+        className="info-bar"
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          padding: '0 15px',
+          height: '30px',
+          background: '#202124',
+          borderBottom: '1px solid #333'
+        }}
+      >
+        {currentTask && (
+          <div
+            className="no-drag-region"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              color: '#4caf50',
+              fontWeight: 'bold',
+              fontSize: '13px'
+            }}
+          >
+            <span style={{ fontSize: '14px' }}>📋</span>
+            <span style={{ opacity: 0.8, color: '#9aa0a6', fontWeight: 'normal' }}>当前任务:</span>
+            <span>{currentTask.name}</span>
+            <button
+              onClick={handleTaskLists}
+              className="no-drag-region list-btn"
+              style={{ margin: 0 }}
+            >
+              列表
+            </button>
+          </div>
+        )}
+        {currentUser ? (
+          <div
+            className="no-drag-region"
+            style={{
+              marginLeft: 'auto',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px'
+            }}
+          >
+            <button
+              onClick={handleOnProfile}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: '#aaa',
+                fontSize: '12px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px',
+                padding: '2px 8px',
+                borderRadius: '3px'
+              }}
+            >
+              👤 {currentUser.name}
+            </button>
+            <button
+              onClick={handleOnProfile}
+              style={{
+                background: 'none',
+                border: '1px solid #555',
+                color: '#aaa',
+                fontSize: '12px',
+                cursor: 'pointer',
+                padding: '2px 8px',
+                borderRadius: '3px'
+              }}
+            >
+              个人中心
+            </button>
+            <button
+              onClick={handleLogout}
+              style={{
+                background: 'none',
+                border: '1px solid #555',
+                color: '#aaa',
+                fontSize: '12px',
+                cursor: 'pointer',
+                padding: '2px 8px',
+                borderRadius: '3px'
+              }}
+            >
+              登出
+            </button>
+          </div>
+        ) : (
+          <button
+            className="no-drag-region"
+            onClick={handleOnLogin}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: '#aaa',
+              fontSize: '12px',
+              cursor: 'pointer',
+              marginLeft: 'auto',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px'
+            }}
+          >
+            👤 登入
+          </button>
+        )}
+      </div>
+
       {/* 1. TabBar */}
       <div className="tab-bar">
         {tabs.map((tab) => (
@@ -285,16 +539,35 @@ function App(): ReactElement {
         <button className="add-btn" onClick={addTab}>
           +
         </button>
-        {currentTask && (
-          <div className="no-drag-region current-task-box">
-            <span style={{ fontSize: '14px' }}>📋</span>
-            <span style={{ opacity: 0.8, color: '#9aa0a6', fontWeight: 'normal' }}>当前任务:</span>
-            <span>{currentTask.name}</span>
-            <button onClick={handleTaskLists} className="no-drag-region list-btn">
-              列表
-            </button>
-          </div>
-        )}
+        <div
+          className="no-drag-region"
+          style={{
+            marginLeft: 'auto',
+            paddingRight: '15px',
+            display: 'flex',
+            gap: '8px',
+            paddingBottom: '8px',
+            alignItems: 'center'
+          }}
+        >
+          <button className="nav-btn" title="后退" onClick={() => window.api.goBack(activeTabId)}>
+            ◀
+          </button>
+          <button
+            className="nav-btn"
+            title="前进"
+            onClick={() => window.api.goForward(activeTabId)}
+          >
+            ▶
+          </button>
+          <button
+            className="nav-btn"
+            title="重新加载"
+            onClick={() => window.api.refreshTab(activeTabId)}
+          >
+            ↻
+          </button>
+        </div>
       </div>
       <header className="header">
         <input
@@ -346,8 +619,8 @@ function App(): ReactElement {
             </button>
           </div>
         )}
-        <button onClick={handleCapture} disabled={isCapturing} className="button captureButton">
-          上传固证
+        <button onClick={handleEvidence} className="button captureButton">
+          🔒 固证
         </button>
       </header>
       {/* 這裡下方會留白，由主進程把 BrowserView 疊加上去 */}
@@ -369,6 +642,12 @@ function App(): ReactElement {
           }}
           onDelete={handleDeleteTask}
         />
+      )}
+      {showLoginModal && (
+        <LoginModal onLogin={handleLogin} onCancel={() => setShowLoginModal(false)} />
+      )}
+      {showProfileModal && currentUser && (
+        <ProfileModal user={currentUser} onClose={() => setShowProfileModal(false)} />
       )}
     </div>
   )

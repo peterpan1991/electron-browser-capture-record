@@ -257,7 +257,6 @@ code {
 
 .tab-bar {
   display: flex;
-  background-color: #202124;
   padding: 8px 8px 0 10px;
   align-items: flex-end;
   gap: 4px;
@@ -314,7 +313,6 @@ code {
 }
 
 @media (max-width: 350px) {
-
   .tip,
   .actions {
     display: none;
@@ -369,4 +367,283 @@ code {
   100% {
     transform: scale(0.9);
   }
+}
+
+.nav-btn {
+  background: none;
+  border: none;
+  color: #aaa;
+  cursor: pointer;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px;
+}
+
+.nav-btn:hover {
+  color: #fff;
+}
+
+/* 上传固证页面样式 */
+.upload-evidence-wrapper {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 999;
+  background-color: #1a1a1a;
+}
+
+.upload-evidence-container {
+  display: flex;
+  height: 100%;
+  width: 100%;
+  color: #fff;
+}
+
+/* 左侧边栏 */
+.upload-sidebar {
+  width: 200px;
+  background-color: #252526;
+  border-right: 1px solid #3c3c3c;
+  display: flex;
+  flex-direction: column;
+}
+
+.sidebar-title {
+  padding: 20px;
+  font-size: 18px;
+  font-weight: bold;
+  border-bottom: 1px solid #3c3c3c;
+  color: #fff;
+}
+
+.sidebar-menu {
+  flex: 1;
+  padding: 10px 0;
+}
+
+.menu-item {
+  padding: 12px 20px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #9aa0a6;
+  transition: all 0.2s;
+}
+
+.menu-item:hover {
+  background-color: #2a2d2e;
+  color: #fff;
+}
+
+.menu-item.active {
+  background-color: #37373d;
+  color: #fff;
+  border-left: 3px solid #007bff;
+}
+
+.menu-icon {
+  font-size: 16px;
+}
+
+/* 右侧内容区 */
+.upload-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.content-header {
+  padding: 20px;
+  border-bottom: 1px solid #3c3c3c;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 15px;
+}
+
+.content-header h2 {
+  margin: 0;
+  font-size: 20px;
+  color: #fff;
+}
+
+/* 上传按钮 */
+.upload-btn {
+  padding: 10px 20px;
+  background-color: #007bff;
+  border: none;
+  border-radius: 4px;
+  color: #fff;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  transition: background-color 0.2s;
+}
+
+.upload-btn:hover {
+  background-color: #0056b3;
+}
+
+/* 筛选区域 */
+.filter-area {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.filter-input {
+  padding: 8px 12px;
+  border: 1px solid #3c3c3c;
+  border-radius: 4px;
+  background-color: #3c3c3c;
+  color: #fff;
+  font-size: 13px;
+  width: 180px;
+  outline: none;
+}
+
+.filter-input:focus {
+  border-color: #007bff;
+}
+
+.filter-btn {
+  padding: 8px 16px;
+  background-color: #4a4a4a;
+  border: none;
+  border-radius: 4px;
+  color: #fff;
+  cursor: pointer;
+  font-size: 13px;
+  transition: background-color 0.2s;
+}
+
+.filter-btn:hover {
+  background-color: #5a5a5a;
+}
+
+/* 数据表格 */
+.upload-list,
+.file-list {
+  flex: 1;
+  overflow: auto;
+  padding: 20px;
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.data-table th,
+.data-table td {
+  padding: 12px 15px;
+  text-align: left;
+  border-bottom: 1px solid #3c3c3c;
+}
+
+.data-table th {
+  background-color: #2d2d30;
+  color: #9aa0a6;
+  font-weight: 600;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.data-table td {
+  color: #fff;
+  font-size: 14px;
+}
+
+.data-table tbody tr:hover {
+  background-color: #2a2d2e;
+}
+
+/* 进度条 */
+.progress-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.progress-bar {
+  flex: 1;
+  height: 8px;
+  background-color: #3c3c3c;
+  border-radius: 4px;
+  overflow: hidden;
+  max-width: 150px;
+}
+
+.progress-fill {
+  height: 100%;
+  background-color: #007bff;
+  transition: width 0.3s ease;
+}
+
+.progress-text {
+  font-size: 12px;
+  color: #9aa0a6;
+  min-width: 40px;
+}
+
+/* 状态标签 */
+.status-badge {
+  display: inline-block;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.status-badge.uploading {
+  background-color: #ffc107;
+  color: #000;
+}
+
+.status-badge.completed {
+  background-color: #28a745;
+  color: #fff;
+}
+
+.status-badge.failed {
+  background-color: #dc3545;
+  color: #fff;
+}
+
+/* 操作按钮 */
+.action-buttons {
+  display: flex;
+  gap: 8px;
+}
+
+.action-btn {
+  padding: 6px 12px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  transition: opacity 0.2s;
+}
+
+.action-btn:hover {
+  opacity: 0.8;
+}
+
+.action-btn.certificate {
+  background-color: #17a2b8;
+  color: #fff;
+}
+
+.action-btn.download {
+  background-color: #6c757d;
+  color: #fff;
 }

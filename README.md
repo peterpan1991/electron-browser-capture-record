@@ -34,6 +34,7 @@ $ npm run build:linux
 ```
 
 ### task path
+
 ```bash
 C:\Users\<YourUsername>\AppData\Roaming\djy-browser-capture\tasks.json
 ```

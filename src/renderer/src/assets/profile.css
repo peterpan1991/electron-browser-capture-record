@@ -1,0 +1,367 @@
+/* Profile Modal Styles */
+.profile-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background-color: rgba(0, 0, 0, 0.7);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 9999999;
+}
+
+.profile-modal {
+  background: #2a2a2a;
+  border-radius: 12px;
+  width: 600px;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+}
+
+.profile-modal-header {
+  padding: 20px 24px;
+  border-bottom: 1px solid #444;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.profile-modal-header h2 {
+  margin: 0;
+  color: #fff;
+  font-size: 18px;
+}
+
+.profile-modal-close {
+  background: none;
+  border: none;
+  color: #888;
+  font-size: 24px;
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+}
+
+.profile-modal-tabs {
+  display: flex;
+  border-bottom: 1px solid #444;
+}
+
+.profile-modal-tab {
+  flex: 1;
+  padding: 12px;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: #888;
+  cursor: pointer;
+  font-size: 14px;
+  transition: all 0.2s;
+}
+
+.profile-modal-tab.active {
+  background: #3a3a3a;
+  border-bottom-color: #4caf50;
+  color: #fff;
+}
+
+.profile-modal-content {
+  padding: 24px;
+  overflow: auto;
+  flex: 1;
+}
+
+/* Profile Tab */
+.profile-info-card {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 20px;
+  background: #333;
+  border-radius: 8px;
+}
+
+.profile-avatar {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background: #4caf50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  color: #fff;
+}
+
+.profile-name {
+  color: #fff;
+  font-size: 18px;
+  font-weight: bold;
+}
+
+.profile-email {
+  color: #888;
+  font-size: 13px;
+  margin-top: 4px;
+}
+
+.profile-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.profile-grid-item {
+  padding: 16px;
+  background: #333;
+  border-radius: 8px;
+}
+
+.profile-grid-label {
+  color: #888;
+  font-size: 12px;
+  margin-bottom: 4px;
+}
+
+.profile-grid-value {
+  color: #fff;
+  font-size: 14px;
+}
+
+/* Balance Tab */
+.balance-card {
+  padding: 30px;
+  background: linear-gradient(135deg, #4caf50 0%, #2e7d32 100%);
+  border-radius: 12px;
+  text-align: center;
+}
+
+.balance-label {
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 14px;
+  margin-bottom: 8px;
+}
+
+.balance-value {
+  color: #fff;
+  font-size: 36px;
+  font-weight: bold;
+}
+
+.transaction-card {
+  padding: 20px;
+  background: #333;
+  border-radius: 8px;
+}
+
+.transaction-title {
+  color: #fff;
+  font-size: 14px;
+  font-weight: bold;
+  margin-bottom: 16px;
+}
+
+.transaction-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.transaction-item {
+  padding: 12px;
+  background: #2a2a2a;
+  border-radius: 6px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.transaction-note {
+  color: #fff;
+  font-size: 13px;
+  font-weight: bold;
+}
+
+.transaction-time {
+  color: #666;
+  font-size: 11px;
+  margin-top: 4px;
+}
+
+.transaction-amount {
+  text-align: right;
+}
+
+.transaction-amount-value {
+  font-size: 14px;
+  font-weight: bold;
+}
+
+.transaction-amount-value.income {
+  color: #4caf50;
+}
+
+.transaction-amount-value.outcome {
+  color: #f44336;
+}
+
+.transaction-balance {
+  color: #666;
+  font-size: 11px;
+  margin-top: 4px;
+}
+
+.pagination {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 10px;
+  margin-top: 16px;
+  padding: 10px 0;
+}
+
+.pagination-btn {
+  padding: 6px 12px;
+  background: #444;
+  border: none;
+  border-radius: 4px;
+  color: #fff;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.pagination-btn:disabled {
+  background: #333;
+  color: #666;
+  cursor: not-allowed;
+}
+
+.pagination-info {
+  color: #888;
+  font-size: 12px;
+}
+
+.loading-text {
+  color: #888;
+  text-align: center;
+  padding: 20px 0;
+}
+
+.empty-text {
+  color: #666;
+  text-align: center;
+  padding: 20px 0;
+}
+
+/* Evidence Tab */
+.evidence-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.evidence-item {
+  padding: 16px;
+  background: #333;
+  border-radius: 8px;
+}
+
+.evidence-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 8px;
+}
+
+.evidence-name {
+  color: #fff;
+  font-size: 14px;
+  font-weight: bold;
+}
+
+.evidence-info {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 12px;
+  font-size: 12px;
+  color: #888;
+}
+
+.evidence-info-label {
+  color: #666;
+}
+
+.evidence-hash {
+  margin-top: 8px;
+  font-size: 11px;
+  color: #666;
+  word-break: break-all;
+}
+
+/* 状态标签 */
+.status-badge {
+  display: inline-block;
+  padding: 0px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.status-badge.submitted {
+  background-color: #17a2b8;
+  color: #fff;
+}
+
+.status-badge.uploading {
+  background-color: #ffc107;
+  color: #000;
+}
+
+.status-badge.success {
+  background-color: #28a745;
+  color: #fff;
+}
+
+.status-badge.failed {
+  background-color: #dc3545;
+  color: #fff;
+}
+
+.evidence-actions {
+  margin-top: 12px;
+  display: flex;
+  gap: 8px;
+}
+
+.action-btn {
+  padding: 6px 12px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  transition: opacity 0.2s;
+}
+
+.action-btn:hover {
+  opacity: 0.8;
+}
+
+.action-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.action-btn.certificate {
+  background-color: #17a2b8;
+  color: #fff;
+}
+
+.action-btn.download {
+  background-color: #6c757d;
+  color: #fff;
+}
