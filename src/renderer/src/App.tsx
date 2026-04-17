@@ -34,6 +34,19 @@ function App(): ReactElement {
   >([])
   const [activeTabId, setActiveTabId] = useState(0)
 
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent): void => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'w') {
+        e.preventDefault()
+        if (tabs.length > 1 && activeTabId) {
+          removeTab(e as unknown as React.MouseEvent, activeTabId)
+        }
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [tabs.length, activeTabId])
+
   // 初始化时创建第一个标签页
   useEffect(() => {
     const initTab = async (): Promise<void> => {
