@@ -16,7 +16,7 @@
   background: #2a2a2a;
   border-radius: 12px;
   width: 600px;
-  max-height: 80vh;
+  height: 600px;
   display: flex;
   flex-direction: column;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
@@ -302,6 +302,23 @@
   word-break: break-all;
 }
 
+.evidence-action-btn {
+  margin-top: 12px;
+  padding: 8px 16px;
+  background-color: #28a745;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  transition: opacity 0.2s;
+}
+
+.evidence-action-btn:hover {
+  opacity: 0.85;
+}
+
 /* 状态标签 */
 .status-badge {
   display: inline-block;
@@ -328,6 +345,11 @@
 
 .status-badge.failed {
   background-color: #dc3545;
+  color: #fff;
+}
+
+.status-badge.pending {
+  background-color: #6c757d;
   color: #fff;
 }
 
@@ -364,4 +386,89 @@
 .action-btn.download {
   background-color: #6c757d;
   color: #fff;
+}
+
+.upload-progress-card {
+  background: #1e1e1e;
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 16px;
+  border: 1px solid #333;
+}
+
+.upload-progress-title {
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.upload-progress-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.upload-progress-close {
+  background: none;
+  border: none;
+  color: #999;
+  font-size: 20px;
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+}
+
+.upload-progress-close:hover {
+  color: #fff;
+}
+
+.upload-progress-status {
+  font-size: 14px;
+  padding: 8px 12px;
+  border-radius: 4px;
+  margin-bottom: 12px;
+}
+
+.upload-progress-status.packaging {
+  background: #fff3cd;
+  color: #856404;
+}
+
+.upload-progress-status.uploading {
+  background: #cce5ff;
+  color: #004085;
+}
+
+.upload-progress-status.creating {
+  background: #d4edda;
+  color: #155724;
+}
+
+.upload-progress-status.done {
+  background: #d4edda;
+  color: #155724;
+}
+
+.upload-progress-status.error {
+  background: #f8d7da;
+  color: #721c24;
+}
+
+.upload-progress-detail {
+  background: #2a2a2a;
+  padding: 12px;
+  border-radius: 4px;
+  font-size: 12px;
+  color: #aaa;
+  line-height: 1.8;
+}
+
+.upload-progress-error {
+  background: #f8d7da;
+  color: #721c24;
+  padding: 8px 12px;
+  border-radius: 4px;
+  font-size: 12px;
+  margin-top: 8px;
 }

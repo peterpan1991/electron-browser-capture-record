@@ -1,5 +1,7 @@
 import axios, { AxiosInstance, AxiosError } from 'axios'
 import FormData from 'form-data'
+import * as fs from 'fs'
+import * as path from 'path'
 
 // API 配置
 export const API_BASE_URL = 'http://127.0.0.1:8000/api/browser-client'
@@ -86,7 +88,7 @@ class HttpClient {
   constructor(baseUrl: string) {
     this.client = axios.create({
       baseURL: baseUrl,
-      timeout: 30000,
+      timeout: 300000,
       headers: {
         'Content-Type': 'application/json',
         Accept: 'application/json'
@@ -202,6 +204,25 @@ class HttpClient {
         success: true,
         data: response.data
       }
+    } catch (error) {
+      return this.handleError(error)
+    }
+  }
+
+  // 上传本地文件
+  async uploadFile<T>(endpoint: string, localFilePath: string): Promise<ApiResponse<T>> {
+    try {
+      if (!fs.existsSync(localFilePath)) {
+        return {
+          success: false,
+          message: '文件不存在'
+        }
+      }
+
+      const fileName = path.basename(localFilePath)
+      const fileBuffer = fs.readFileSync(localFilePath)
+
+      return await this.upload<T>(endpoint, fileBuffer, fileName)
     } catch (error) {
       return this.handleError(error)
     }

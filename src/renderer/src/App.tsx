@@ -192,6 +192,11 @@ function App(): ReactElement {
       return
     }
 
+    const handleConfirmed = confirm(`请在弹出的窗口中选择文件上传（可多选，大小限制1GB），暂不支持文件夹上传`)
+    if (!handleConfirmed) {
+      return
+    }
+
     const filePaths = await window.api.selectFiles()
     if (filePaths.length === 0) {
       return
@@ -202,30 +207,11 @@ function App(): ReactElement {
       return
     }
 
-    try {
-      const result = await window.api.packageFiles(filePaths, currentTask.savePath)
-      if (!result.success) {
-        alert('打包失败: ' + result.message)
-        return
-      }
-
-      const fileName = `evidence-${Date.now()}.zip`
-      const response = await evidenceAPI.create({
-        file_name: fileName,
-        file_size: result.fileSize || 0,
-        file_count: result.fileCount || 0,
-        file_hash: result.hash || ''
-      })
-
-      if (response.success) {
-        alert('固证创建成功！请妥善保管源文件' + fileName)
-      } else {
-        alert('固证创建失败: ' + (response.message || response.error))
-      }
-    } catch (err) {
-      console.error('固证失败:', err)
-      alert('固证失败，请重试')
+    if (!url || url === '' || !url.includes('about:blank')) {
+      await addTab()
     }
+
+    await startEvidenceUpload(filePaths, currentTask.savePath)
   }
 
   //新建任务
@@ -235,6 +221,67 @@ function App(): ReactElement {
   const [showProfileModal, setShowProfileModal] = useState(false)
   const [taskList, setTaskList] = useState<Task[]>([])
   const [currentTask, setCurrentTask] = useState<Task | null>(null)
+
+  // 上传记录相关状态
+  const [uploadProgress, setUploadProgress] = useState<{
+    status: 'idle' | 'packaging' | 'uploading' | 'creating' | 'done' | 'error'
+    message: string
+    zipPath?: string
+    uploadData?: {
+      upload_file_id: number
+      file_path: string
+      file_name: string
+      file_count: number
+      file_size: number
+    }
+    hash?: string
+    error?: string
+  }>({ status: 'idle', message: '' })
+
+  const startEvidenceUpload = async (filePaths: string[], savePath: string): Promise<void> => {
+    if (!currentUser || !currentTask) return
+
+    setUploadProgress({ status: 'packaging', message: '正在打包文件...' })
+    setShowProfileModal(true)
+
+    try {
+      const result = await window.api.packageFiles(filePaths, savePath)
+      if (!result.success) {
+        setUploadProgress({ status: 'error', message: '打包失败', error: result.message })
+        return
+      }
+
+      setUploadProgress({ status: 'uploading', message: '正在上传...' })
+
+      const zipPath = result.zipPath || ''
+      const uploadResponse = await evidenceAPI.upload(zipPath)
+      if (!uploadResponse.success) {
+        setUploadProgress({ status: 'error', message: '上传失败', error: uploadResponse.message })
+        return
+      }
+
+      const uploadData = uploadResponse.data?.data
+      if (!uploadData || !uploadData.upload_file_id) {
+        setUploadProgress({ status: 'error', message: '上传返回数据无效' })
+        return
+      }
+
+      setUploadProgress({
+        status: 'done',
+        message: `上传成功！共 ${uploadData.file_count} 个文件，请点击"区块链固证"创建固证`,
+        zipPath,
+        uploadData,
+        hash: result.hash || '' 
+      })
+    } catch (err) {
+      console.error('固证失败:', err)
+      setUploadProgress({ status: 'error', message: '操作失败', error: String(err) })
+    }
+  }
+
+  const resetUploadProgress = (): void => {
+    setUploadProgress({ status: 'idle', message: '' })
+  }
 
   // 用户登录状态
   const [currentUser, setCurrentUser] = useState<User | null>(null)
@@ -647,7 +694,15 @@ function App(): ReactElement {
         <LoginModal onLogin={handleLogin} onCancel={() => setShowLoginModal(false)} />
       )}
       {showProfileModal && currentUser && (
-        <ProfileModal user={currentUser} onClose={() => setShowProfileModal(false)} />
+        <ProfileModal 
+          user={currentUser} 
+          uploadProgress={uploadProgress}
+          onResetUploadProgress={resetUploadProgress}
+          onClose={() => {
+            setShowProfileModal(false)
+            resetUploadProgress()
+          }} 
+        />
       )}
     </div>
   )

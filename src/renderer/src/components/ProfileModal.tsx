@@ -1,6 +1,6 @@
 import { ReactElement, useState, useEffect } from 'react'
 import { formatFileSize, formatTime } from '../utils/format'
-import { User, balanceAPI, userAPI, evidenceAPI } from '../utils/api'
+import { User, balanceAPI, userAPI, evidenceAPI, UploadRecord } from '../utils/api'
 import '../assets/profile.css'
 
 interface EvidenceRecord {
@@ -30,18 +30,37 @@ interface BalanceRecord {
 
 interface ProfileModalProps {
   user: User
+  uploadProgress?: {
+    status: 'idle' | 'packaging' | 'uploading' | 'creating' | 'done' | 'error'
+    message: string
+    zipPath?: string
+    uploadData?: {
+      upload_file_id: number
+      file_path: string
+      file_name: string
+      file_count: number
+      file_size: number
+    }
+    hash?: string
+    error?: string
+  }
+  onRefreshUpload?: () => void
+  onResetUploadProgress?: () => void
   onClose: () => void
 }
 
-export default function ProfileModal({ user: initialUser, onClose }: ProfileModalProps): ReactElement {
-  const [activeTab, setActiveTab] = useState<'profile' | 'balance' | 'evidence'>('profile')
+export default function ProfileModal({ user: initialUser, uploadProgress, onRefreshUpload, onResetUploadProgress, onClose }: ProfileModalProps): ReactElement {
+  const [activeTab, setActiveTab] = useState<'profile' | 'balance' | 'uploads' | 'evidence'>('profile')
   const [evidenceList, setEvidenceList] = useState<EvidenceRecord[]>([])
+  const [uploadList, setUploadList] = useState<UploadRecord[]>([])
   const [balanceList, setBalanceList] = useState<BalanceRecord[]>([])
   const [user, setUser] = useState(initialUser)
   const [currentBalance, setCurrentBalance] = useState(initialUser.balance)
   const [loading, setLoading] = useState(false)
   const [balancePage, setBalancePage] = useState(1)
   const [balanceTotal, setBalanceTotal] = useState(0)
+  const [uploadPage, setUploadPage] = useState(1)
+  const [uploadTotal, setUploadTotal] = useState(0)
   const [evidencePage, setEvidencePage] = useState(1)
   const [evidenceTotal, setEvidenceTotal] = useState(0)
   const [certApplying, setCertApplying] = useState<number | null>(null)
@@ -54,11 +73,21 @@ export default function ProfileModal({ user: initialUser, onClose }: ProfileModa
   }, [])
 
   useEffect(() => {
+    if (uploadProgress && uploadProgress.status !== 'idle') {
+      setActiveTab('uploads')
+      loadUploadList(1)
+    }
+  }, [uploadProgress])
+
+  useEffect(() => {
     if (activeTab === 'evidence') {
       loadEvidenceList(1)
     }
     if (activeTab === 'balance') {
       loadBalanceList(1)
+    }
+    if (activeTab === 'uploads') {
+      loadUploadList(1)
     }
   }, [activeTab])
 
@@ -90,6 +119,23 @@ export default function ProfileModal({ user: initialUser, onClose }: ProfileModa
     }
   }
 
+  const loadUploadList = async (page: number): Promise<void> => {
+    setLoading(true)
+    try {
+      const result = await window.api.apiEvidenceUploadList(page, pageSize)
+      console.log(result)      
+      if (result.success && result.data) {
+        setUploadList(result.data.list || [])
+        setUploadTotal(result.data.total || 0)
+        setUploadPage(page)
+      }
+    } catch (err) {
+      console.error('加载上传记录失败:', err)
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const applyCertificate = async (id: number): Promise<void> => {
     setCertApplying(id)
     try {
@@ -105,6 +151,28 @@ export default function ProfileModal({ user: initialUser, onClose }: ProfileModa
       alert('证书申请失败')
     } finally {
       setCertApplying(null)
+    }
+  }
+
+  const handleCreateEvidence = async (item: UploadRecord): Promise<void> => {
+    try {
+      const result = await evidenceAPI.create({
+        upload_file_id: item.id,
+        file_path: item.file_path,
+        file_name: item.file_name,
+        file_hash: item.file_hash
+      })
+      if (result.success) {
+        alert('固证创建成功')
+        loadUploadList(uploadPage)
+        setActiveTab('evidence')
+        loadEvidenceList(1)
+      } else {
+        alert(result.message || '固证创建失败')
+      }
+    } catch (err) {
+      console.error('固证创建失败:', err)
+      alert('固证创建失败')
     }
   }
 
@@ -165,7 +233,7 @@ export default function ProfileModal({ user: initialUser, onClose }: ProfileModa
   }
 
   const getEvidenceStatusText = (status: number): string => {
-    return status === 0 ? '已提交' : status === 1 ? '上传中' : status === 2 ? '成功' : status === 3 ? '失败' : '未知'
+    return status === 0 ? '已提交' : status === 1 ? '处理中' : status === 2 ? '成功' : status === 3 ? '失败' : '未知'
   }
 
   const getEvidenceStatusClass = (status: number): string => {
@@ -194,6 +262,12 @@ export default function ProfileModal({ user: initialUser, onClose }: ProfileModa
             onClick={() => setActiveTab('balance')}
           >
             积分
+          </button>
+          <button
+            className={`profile-modal-tab ${activeTab === 'uploads' ? 'active' : ''}`}
+            onClick={() => setActiveTab('uploads')}
+          >
+            上传记录
           </button>
           <button
             className={`profile-modal-tab ${activeTab === 'evidence' ? 'active' : ''}`}
@@ -252,31 +326,34 @@ export default function ProfileModal({ user: initialUser, onClose }: ProfileModa
                   <div className="transaction-list">
                     {balanceList.map((item) => (
                       <div key={item.id} className="transaction-item">
-                        <div>
-                          <div className="transaction-note">{getTransactionNote(item)}</div>
-                          <div className="transaction-time">{formatTime(item.created_at)}</div>
+                        <div className="transaction-info">
+                          <div className="transaction-type">
+                            {item.type === 1 ? '充值' : '消费'}
+                          </div>
+                          <div className="transaction-note">{item.note || '-'}</div>
                         </div>
                         <div className="transaction-amount">
-                          <div className={`transaction-amount-value ${getAmountClass(item.type)}`}>
-                            {getAmountPrefix(item.type)}¥ {item.amount}
-                          </div>
-                          <div className="transaction-balance">余额: ¥ {item.balance}</div>
+                          <span className={item.type === 1 ? 'positive' : 'negative'}>
+                            {item.type === 1 ? '+' : '-'}¥{item.amount}
+                          </span>
+                          <div className="transaction-time">{formatTime(item.created_at)}</div>
                         </div>
                       </div>
                     ))}
                   </div>
                 )}
-                {balanceList.length > 0 && (
+
+                {getBalanceTotalPages() > 1 && (
                   <div className="pagination">
                     <button
                       className="pagination-btn"
                       onClick={() => loadBalanceList(balancePage - 1)}
-                      disabled={balancePage === 1 || loading}
+                      disabled={balancePage <= 1 || loading}
                     >
                       上一页
                     </button>
                     <span className="pagination-info">
-                      第 {balancePage} / {getBalanceTotalPages()} 页
+                      {balancePage} / {getBalanceTotalPages()}
                     </span>
                     <button
                       className="pagination-btn"
@@ -288,6 +365,108 @@ export default function ProfileModal({ user: initialUser, onClose }: ProfileModa
                   </div>
                 )}
               </div>
+            </div>
+          )}
+
+          {activeTab === 'uploads' && (
+            <div>
+              {uploadProgress && uploadProgress.status !== 'idle' && (
+                <div className="upload-progress-card">
+                  <div className="upload-progress-header">
+                    <div className="upload-progress-title">上传进度</div>
+                    <button 
+                      className="upload-progress-close"
+                      onClick={() => onResetUploadProgress?.()}
+                    >
+                      ×
+                    </button>
+                  </div>
+                  <div className={`upload-progress-status ${uploadProgress.status}`}>
+                    {uploadProgress.status === 'packaging' && '📦 ' + uploadProgress.message}
+                    {uploadProgress.status === 'uploading' && '⬆️ ' + uploadProgress.message}
+                    {uploadProgress.status === 'creating' && '🔗 ' + uploadProgress.message}
+                    {uploadProgress.status === 'done' && '✅ ' + uploadProgress.message}
+                    {uploadProgress.status === 'error' && '❌ ' + uploadProgress.message}
+                  </div>
+                  {uploadProgress.status === 'done' && uploadProgress.uploadData && (
+                    <div className="upload-progress-detail">
+                      <div>文件名：{uploadProgress.uploadData.file_name}</div>
+                      <div>文件数量：{uploadProgress.uploadData.file_count}</div>
+                      <div>文件大小：{formatFileSize(uploadProgress.uploadData.file_size)}</div>
+                      {uploadProgress.hash && <div>文件哈希：{uploadProgress.hash}</div>}
+                    </div>
+                  )}
+                  {uploadProgress.status === 'error' && uploadProgress.error && (
+                    <div className="upload-progress-error">
+                      错误信息：{uploadProgress.error}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {loading ? (
+                <div className="loading-text">加载中...</div>
+              ) : uploadList.length === 0 ? (
+                <div className="empty-text">暂无上传记录</div>
+              ) : (
+                <div className="evidence-list">
+                  {uploadList.map((item) => (
+                    <div key={item.id} className="evidence-item">
+                      <div className="evidence-header">
+                        <div className="evidence-name">{item.file_name}</div>
+                        <span className={`status-badge ${item.status === 1 ? 'success' : item.status === 2 ? 'failed' : item.status === 3 ? 'failed' : 'pending'}`}>
+                          {item.status === 0 ? '上传中' : item.status === 1 ? '成功' : item.status === 2 ? '失败' : item.status === 3 ? '已删除' : '未知状态'}
+                        </span>
+                      </div>
+                      <div className="evidence-info">
+                        <div>
+                          <span className="evidence-info-label">文件大小：</span>
+                          {formatFileSize(item.file_size)}
+                        </div>
+                        <div>
+                          <span className="evidence-info-label">文件数量：</span>
+                          {item.file_count}
+                        </div>
+                        <div>
+                          <span className="evidence-info-label">创建时间：</span>
+                          {formatTime(item.created_at)}
+                        </div>
+                      </div>
+                      <div className="evidence-hash">哈希：{item.file_hash}</div>
+                      {item.status === 1 && !item.has_evidence && (
+                        <button
+                          className="evidence-action-btn"
+                          onClick={() => handleCreateEvidence(item)}
+                        >
+                          区块链固证
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {uploadTotal > pageSize && (
+                <div className="pagination">
+                  <button
+                    className="pagination-btn"
+                    onClick={() => loadUploadList(uploadPage - 1)}
+                    disabled={uploadPage <= 1 || loading}
+                  >
+                    上一页
+                  </button>
+                  <span className="pagination-info">
+                    {uploadPage} / {Math.ceil(uploadTotal / pageSize)}
+                  </span>
+                  <button
+                    className="pagination-btn"
+                    onClick={() => loadUploadList(uploadPage + 1)}
+                    disabled={uploadPage >= Math.ceil(uploadTotal / pageSize) || loading}
+                  >
+                    下一页
+                  </button>
+                </div>
+              )}
             </div>
           )}
 

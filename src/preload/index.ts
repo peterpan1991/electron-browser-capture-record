@@ -66,15 +66,17 @@ const api = {
   apiGetUserInfo: () => ipcRenderer.invoke('api:get-user-info'),
   apiIsAuthenticated: () => ipcRenderer.invoke('api:is-authenticated'),
   apiEvidenceCreate: (params: {
+    upload_file_id: number
+    file_path: string
     file_name: string
-    file_size: number
-    file_count: number
     file_hash: string
   }) => ipcRenderer.invoke('api:evidence-create', params),
   apiEvidenceList: (page: number = 1, perPage: number = 10) => ipcRenderer.invoke('api:evidence-list', page, perPage),
+  apiEvidenceUploadList: (page: number = 1, perPage: number = 10) => ipcRenderer.invoke('api:evidence-upload-list', page, perPage),
   apiEvidenceCertificateApply: (id: number) => ipcRenderer.invoke('api:evidence-certificate-apply', id),
   apiBalanceList: (page: number = 1, perPage: number = 10) => ipcRenderer.invoke('api:balance-list', page, perPage),
   apiQueryBlockChain: (id: number) => ipcRenderer.invoke('api:query-block-chain', id),
+  apiEvidenceUpload: (filePath: string) => ipcRenderer.invoke('api:evidence-upload', filePath),
 }
 
 // Use `contextBridge` APIs to expose Electron APIs to

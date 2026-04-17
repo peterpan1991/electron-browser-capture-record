@@ -1,4 +1,4 @@
-import { http, authManager, ApiResponse, LoginResponse, User } from './http'
+import { http, authManager, ApiResponse, LoginResponse, User} from './http'
 
 export type { ApiResponse, LoginResponse, User }
 export { authManager }
@@ -24,13 +24,27 @@ export const loginAPI = {
   }
 }
 
+// 固证创建参数
 export interface EvidenceCreateParams {
+  upload_file_id: number
+  file_path: string
   file_name: string
-  file_size: number
-  file_count: number
   file_hash: string
 }
 
+// 上传结果
+export interface EvidenceUploadResult {
+  message: string
+  data: {
+    upload_file_id: number
+    file_path: string
+    file_name: string
+    file_count: number
+    file_size: number
+  }
+}
+
+// 固证记录
 export interface EvidenceRecord {
   id: number
   file_name: string
@@ -45,9 +59,32 @@ export interface EvidenceRecord {
   }
 }
 
+// 上传记录
+export interface UploadRecord {
+  id: number
+  customer_id: number
+  file_path: string
+  file_name: string
+  file_size: number
+  file_count: number
+  file_hash: string
+  status: number
+  created_at: string
+  customer_evidence_id: number | null
+}
+
 export const evidenceAPI = {
   create: async (params: EvidenceCreateParams): Promise<ApiResponse> => {
     return await http.post('/evidence/create', params)
+  },
+
+  upload: async (filePath: string): Promise<ApiResponse<EvidenceUploadResult>> => {
+    return await http.uploadFile('/evidence/upload', filePath)
+  },
+
+  uploadList: async (page: number = 1, perPage: number = 10): Promise<ApiResponse<{ list: UploadRecord[]; total: number }>> => {
+    const response = await http.get<{ list: UploadRecord[]; total: number }>('/evidence/upload/list', { page: String(page), per_page: String(perPage) })
+    return response
   },
 
   list: async (page: number = 1, perPage: number = 10): Promise<ApiResponse<{ list: EvidenceRecord[]; total: number }>> => {

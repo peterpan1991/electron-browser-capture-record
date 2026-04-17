@@ -24,6 +24,20 @@ export interface CustomerEvidence {
   updated_at: string
 }
 
+export interface UploadRecord {
+  id: number
+  customer_id: number
+  file_path: string
+  file_name: string
+  file_size: number
+  file_count: number
+  file_hash: string
+  status: number
+  created_at: string
+  customer_evidence_id: number | null
+  has_evidence: boolean
+}
+
 export interface BalanceRecord {
   id: number
   type: number
@@ -92,16 +106,33 @@ export const userAPI = {
 // 固证 API
 export const evidenceAPI = {
   create: async (params: {
+    upload_file_id: number
+    file_path: string
     file_name: string
-    file_size: number
-    file_count: number
     file_hash: string
   }): Promise<ApiResponse> => {
     return await window.api.apiEvidenceCreate(params)
   },
 
+  upload: async (zipPath: string): Promise<ApiResponse<{
+    message: string
+    data: {
+      upload_file_id: number
+      file_path: string
+      file_name: string
+      file_count: number
+      file_size: number
+    }
+  }>> => {
+    return await window.api.apiEvidenceUpload(zipPath)
+  },
+
   list: async (page: number = 1, perPage: number = 10): Promise<ApiResponse<PaginatedResponse<CustomerEvidence>>> => {
     return await window.api.apiEvidenceList(page, perPage)
+  },
+
+  uploadList: async (page: number = 1, perPage: number = 10): Promise<ApiResponse<PaginatedResponse<UploadRecord>>> => {
+    return await window.api.apiEvidenceUploadList(page, perPage)
   },
 
   applyCertificate: async (id: number): Promise<ApiResponse> => {

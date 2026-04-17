@@ -113,9 +113,9 @@ interface Api {
   apiGetUserInfo: () => Promise<ApiResponse<{ user: User }>>
   apiIsAuthenticated: () => Promise<boolean>
   apiEvidenceCreate: (params: {
+    upload_file_id: number
+    file_path: string
     file_name: string
-    file_size: number
-    file_count: number
     file_hash: string
   }) => Promise<ApiResponse>
   apiEvidenceList: (page?: number, perPage?: number) => Promise<ApiResponse<PaginatedResponse<CustomerEvidence>>>
@@ -123,6 +123,17 @@ interface Api {
   apiEvidenceCertificateApply: (id: number) => Promise<ApiResponse>
   apiBalanceList: (page?: number, perPage?: number) => Promise<ApiResponse<PaginatedResponse<BalanceRecord> & { balance: string }>>
   apiQueryBlockChain: (id: number) => Promise<ApiResponse>
+  apiEvidenceUpload: (filePath: string) => Promise<ApiResponse<{
+    message: string
+    data: {
+      upload_file_id: number
+      file_path: string
+      file_name: string
+      file_count: number
+      file_size: number
+    }
+  }>>  
+  apiEvidenceUploadList: (page?: number, perPage?: number) => Promise<ApiResponse<PaginatedResponse<UploadRecord>>>
 }
 
 declare global {

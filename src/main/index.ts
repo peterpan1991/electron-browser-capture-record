@@ -25,7 +25,10 @@ import {
   evidenceAPI,
   EvidenceRecord,
   balanceAPI,
-  BalanceRecord
+  BalanceRecord,
+  EvidenceUploadResult,
+  EvidenceCreateParams,
+  UploadRecord
 } from './services/api'
 
 function createWindow(): void {
@@ -357,7 +360,11 @@ function createWindow(): void {
   ipcMain.handle('select-files', async () => {
     const { canceled, filePaths } = await dialog.showOpenDialog({
       properties: ['openFile', 'multiSelections'],
-      filters: [{ name: 'All Files', extensions: ['*'] }]
+      filters: [
+        { name: 'All Files', extensions: ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'svg','mp4', 'avi', 'mov', 'mkv', 'wmv', 'flv', 'webm'] },
+        { name: 'Images', extensions: ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'svg'] },
+        { name: 'Videos', extensions: ['mp4', 'avi', 'mov', 'mkv', 'wmv', 'flv', 'webm'] },
+      ]
     })
     return canceled ? [] : filePaths
   })
@@ -481,14 +488,25 @@ function createWindow(): void {
     'api:evidence-create',
     async (
       _event,
-      params: { file_name: string; file_size: number; file_count: number; file_hash: string }
+      params: EvidenceCreateParams
     ): Promise<ApiResponse> => {
       return await evidenceAPI.create(params)
     }
   )
 
+  ipcMain.handle(
+    'api:evidence-upload',
+    async (_event, filePath: string): Promise<ApiResponse<EvidenceUploadResult>> => {
+      return await evidenceAPI.upload(filePath)
+    }
+  )
+
   ipcMain.handle('api:evidence-list', async (_event, page: number = 1, perPage: number = 10): Promise<ApiResponse<{ list: EvidenceRecord[]; total: number }>> => {
     return await evidenceAPI.list(page, perPage)
+  })
+
+  ipcMain.handle('api:evidence-upload-list', async (_event, page: number = 1, perPage: number = 10): Promise<ApiResponse<{ list: UploadRecord[]; total: number }>> => {
+    return await evidenceAPI.uploadList(page, perPage)
   })
 
   ipcMain.handle('api:evidence-certificate-apply', async (_event, id: number): Promise<ApiResponse> => {
