@@ -49,7 +49,7 @@ interface ProfileModalProps {
   onClose: () => void
 }
 
-export default function ProfileModal({ user: initialUser, uploadProgress, onRefreshUpload, onResetUploadProgress, onClose }: ProfileModalProps): ReactElement {
+export default function ProfileModal({ user: initialUser, uploadProgress, onResetUploadProgress, onClose }: ProfileModalProps): ReactElement {
   const [activeTab, setActiveTab] = useState<'profile' | 'balance' | 'uploads' | 'evidence'>('profile')
   const [evidenceList, setEvidenceList] = useState<EvidenceRecord[]>([])
   const [uploadList, setUploadList] = useState<UploadRecord[]>([])
@@ -219,18 +219,6 @@ export default function ProfileModal({ user: initialUser, uploadProgress, onRefr
 
   const getBalanceTotalPages = (): number => Math.ceil(balanceTotal / pageSize)
   const getEvidenceTotalPages = (): number => Math.ceil(evidenceTotal / pageSize)
-
-  const getTransactionNote = (item: BalanceRecord): string => {
-    return item.note || (item.type === 1 ? '充值' : item.type === 4 ? '撤销' : '其他')
-  }
-
-  const getAmountClass = (type: number): string => {
-    return type === 1 ? 'income' : type === 4 ? 'outcome' : ''
-  }
-
-  const getAmountPrefix = (type: number): string => {
-    return type === 1 ? '+' : type === 4 || type === 2 ? '-' : ''
-  }
 
   const getEvidenceStatusText = (status: number): string => {
     return status === 0 ? '已提交' : status === 1 ? '处理中' : status === 2 ? '成功' : status === 3 ? '失败' : '未知'

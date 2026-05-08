@@ -4,7 +4,7 @@ import * as fs from 'fs'
 import * as path from 'path'
 
 // API 配置
-export const API_BASE_URL = 'http://127.0.0.1:8000/api/browser-client'
+export const API_BASE_URL = 'http://8.138.181.164/api/browser-client'
 
 // 用户信息类型
 export interface User {
